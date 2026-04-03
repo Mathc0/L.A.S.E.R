@@ -1,3 +1,4 @@
 yt-dlp
 Pillow
-pygames
+pygame
+python-vlc

@@ -1,59 +1,41 @@
 """
 YouTube Music Client - L.A.S.E.R
-Lecteur audio YouTube avec support streaming VLC et téléchargement pygame
+Lecteur audio YouTube avec streaming VLC
 """
 
 import os
 import sys
 from io import BytesIO
 from urllib.request import urlopen
-from pathlib import Path
 
 from yt_dlp import YoutubeDL
 from PIL import Image
-import pygame
 import vlc
 
 
 class YouTubeMusicClient:
     """
-    Client pour écouter de la musique depuis YouTube.
-    Supporte deux modes : téléchargement + lecture (pygame) ou streaming direct (VLC).
+    Client pour écouter de la musique depuis YouTube en streaming direct avec VLC.
     """
 
     def __init__(self):
-        """Initialise les players audio et le cache."""
-        # Initialisation pygame pour le mode téléchargement
-        pygame.mixer.init()
-
-        # Initialisation VLC pour le mode streaming
+        """Initialise le player VLC pour le streaming."""
+        # Initialisation VLC pour le streaming
         self.vlc_instance = vlc.Instance()
         self.vlc_player = self.vlc_instance.media_player_new()
 
         # État de lecture
-        self.current_file = None
         self.is_playing = False
-        self.use_streaming = False
 
-        # Cache pour les fichiers téléchargés
-        self.cache_dir = Path("./music_cache")
-        self.cache_dir.mkdir(exist_ok=True)
-
-    def search_and_play(self, query, stream=False):
+    def search_and_play(self, query):
         """
-        Recherche et joue une musique YouTube.
+        Recherche et joue une musique YouTube en streaming.
 
         Args:
             query (str): Terme de recherche
-            stream (bool): True pour streaming VLC, False pour téléchargement pygame
         """
         print(f"🔍 Recherche de: {query}")
-        self.use_streaming = stream
-
-        if stream:
-            self._play_stream(query)
-        else:
-            self._play_download(query)
+        self._play_stream(query)
 
     def _play_stream(self, query):
         """Mode streaming : joue directement depuis YouTube via VLC."""
@@ -89,89 +71,44 @@ class YouTubeMusicClient:
 
                 # Afficher la pochette et lancer le stream
                 self.display_cover_ascii(entry.get('thumbnail'))
-                self.stream_play(best_format['url'], entry['title'])
+                self.play(best_format['url'], entry['title'])
 
         except Exception as e:
             print(f"❌ Erreur streaming: {e}")
 
-    def _play_download(self, query):
-        """Mode téléchargement : télécharge puis joue avec pygame."""
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'outtmpl': str(self.cache_dir / '%(title)s.%(ext)s'),
-            'quiet': False,
-            'no_warnings': False,
-        }
-
-        try:
-            with YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch:{query}", download=True)
-
-                if not info or not info.get('entries'):
-                    print("❌ Aucune musique trouvée")
-                    return
-
-                entry = info['entries'][0]
-                self.current_file = self.cache_dir / f"{entry['title']}.mp3"
-
-                # Afficher la pochette et lancer la lecture
-                self.display_cover_ascii(entry.get('thumbnail'))
-                self.play()
-
-        except Exception as e:
-            print(f"❌ Erreur téléchargement: {e}")
-
-    def stream_play(self, url, title):
+    def play(self, url=None, title=None):
         """Joue un stream audio avec VLC."""
-        try:
-            media = self.vlc_instance.media_new(url)
-            self.vlc_player.set_media(media)
+        if url and title:
+            try:
+                media = self.vlc_instance.media_new(url)
+                self.vlc_player.set_media(media)
+                self.vlc_player.play()
+                self.is_playing = True
+                print(f"🎵 Streaming: {title}")
+            except Exception as e:
+                print(f"❌ Erreur lors du streaming: {e}")
+        else:
+            # Reprendre la lecture si elle était en pause
             self.vlc_player.play()
             self.is_playing = True
-            print(f"🎵 Streaming: {title}")
-        except Exception as e:
-            print(f"❌ Erreur lors du streaming: {e}")
-
-    def play(self):
-        """Joue le fichier téléchargé avec pygame."""
-        if self.current_file and self.current_file.exists():
-            pygame.mixer.music.load(str(self.current_file))
-            pygame.mixer.music.play()
-            self.is_playing = True
-            print(f"🎵 Lecture: {self.current_file.name}")
-        else:
-            print("❌ Aucun fichier à jouer")
+            print("▶️  Reprise")
 
     def pause(self):
         """Met en pause la lecture en cours."""
         if self.is_playing:
-            if self.use_streaming:
-                self.vlc_player.pause()
-            else:
-                pygame.mixer.music.pause()
+            self.vlc_player.pause()
             self.is_playing = False
             print("⏸️  Pause")
 
     def resume(self):
         """Reprend la lecture."""
-        if self.use_streaming:
-            self.vlc_player.play()
-        else:
-            pygame.mixer.music.unpause()
+        self.vlc_player.play()
         self.is_playing = True
         print("▶️  Reprise")
 
     def stop(self):
         """Arrête complètement la lecture."""
-        if self.use_streaming:
-            self.vlc_player.stop()
-        else:
-            pygame.mixer.music.stop()
+        self.vlc_player.stop()
         self.is_playing = False
         print("⏹️  Arrêt")
 
@@ -233,8 +170,7 @@ class YouTubeMusicClient:
         """Boucle principale de l'interface CLI."""
         print("🎵 YouTube Music Client - L.A.S.E.R")
         print("Commandes disponibles:")
-        print("  play <recherche>     - Télécharge et joue (pygame)")
-        print("  stream <recherche>   - Stream direct ⚡ (VLC)")
+        print("  play <recherche>     - Stream direct ⚡ (VLC)")
         print("  pause | resume | stop - Contrôles de lecture")
         print("  quit                 - Quitter l'application")
         print()
@@ -248,9 +184,7 @@ class YouTubeMusicClient:
                 action = cmd[0].lower()
 
                 if action == "play" and len(cmd) > 1:
-                    self.search_and_play(cmd[1], stream=False)
-                elif action == "stream" and len(cmd) > 1:
-                    self.search_and_play(cmd[1], stream=True)
+                    self.search_and_play(cmd[1])
                 elif action == "pause":
                     self.pause()
                 elif action == "resume":

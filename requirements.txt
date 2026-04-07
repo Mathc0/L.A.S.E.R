@@ -1,6 +1,6 @@
 yt-dlp
 Pillow
-# il faut télécharger la version en fonction de votre vscode
-#si vsc 32Bit alors installer vlc 32Bit
-#si vsc 64Bit alors installer vlc 64Bit
+# il faut télécharger la version en fonction de votre python
+#si python 32Bit alors installer vlc 32Bit
+#si python 64Bit alors installer vlc 64Bit
 python-vlc

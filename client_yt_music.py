@@ -7,7 +7,6 @@ import os
 import sys
 from io import BytesIO
 from urllib.request import urlopen
-
 from yt_dlp import YoutubeDL
 from PIL import Image
 import vlc

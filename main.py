@@ -76,6 +76,141 @@ def show_playlist(player: MusicPlayer):
     print()
 
 
+def generic_player_menu(player, player_type: str):
+    """
+    Menu de contrôle générique pour un lecteur (local ou YouTube).
+    Offre un ensemble de commandes unifié pour piloter la lecture.
+    """
+    local_help = """
+Commandes disponibles :
+  play / pause  → reprendre ou mettre en pause
+  stop          → arrêter la lecture
+  next          → piste suivante
+  prev          → piste précédente
+  volume [0-100]→ régler le volume  (ex: volume 70)
+  shuffle       → activer/désactiver le mode aléatoire
+  repeat        → activer/désactiver la répétition
+  playlist      → afficher toutes les pistes
+  status        → afficher l'état du player
+  progress      → afficher la barre de progression
+  help          → afficher cette aide
+  back          → retourner au menu principal
+"""
+    youtube_help = """
+Commandes disponibles :
+  search [query]→ rechercher et lire une musique (ex: search daft punk)
+  add [query]   → ajouter une musique à la playlist
+  play / pause  → reprendre ou mettre en pause
+  stop          → arrêter la lecture
+  next          → piste suivante
+  prev          → piste précédente
+  volume [0-100]→ régler le volume  (ex: volume 70)
+  shuffle       → activer/désactiver le mode aléatoire
+  repeat        → activer/désactiver la répétition
+  playlist      → afficher toutes les pistes
+  status        → afficher l'état du player
+  progress      → afficher la barre de progression
+  help          → afficher cette aide
+  back          → retourner au menu principal
+"""
+    HELP = youtube_help if player_type == 'youtube' else local_help
+    print(HELP)
+
+    while True:
+        try:
+            cmd_full = input("Commande > ").strip()
+            cmd_parts = cmd_full.lower().split()
+            cmd = cmd_parts[0] if cmd_parts else ""
+        except KeyboardInterrupt:
+            print("\nRetour au menu principal.")
+            player.stop()
+            break
+
+        if not cmd:
+            continue
+
+        # Commandes spécifiques à YouTube
+        if player_type == 'youtube':
+            if cmd == "search":
+                query = " ".join(cmd_parts[1:])
+                if not query:
+                    print("Usage : search [nom de la musique]")
+                    continue
+                try:
+                    print(f"🔎 Recherche de '{query}'...")
+                    title = player.search_and_play(query)
+                    print(f"🎵 Lecture de : {title}")
+                    show_status(player)
+                except Exception as e:
+                    print(f"⚠️ Erreur de recherche : {e}")
+                continue
+
+            elif cmd == "add":
+                query = " ".join(cmd_parts[1:])
+                if not query:
+                    print("Usage : add [nom de la musique]")
+                    continue
+                try:
+                    print(f"🔎 Recherche et ajout de '{query}'...")
+                    title = player.search_and_queue(query)
+                    print(f"✅ Ajouté à la playlist : {title}")
+                except Exception as e:
+                    print(f"⚠️ Erreur d'ajout : {e}")
+                continue
+
+        # Commandes communes
+        if cmd in ("play", "pause"):
+            player.pause()
+            print("▶  Lecture" if player.is_playing() else "⏸  Pause")
+
+        elif cmd == "stop":
+            player.stop()
+            print("⏹  Lecture arrêtée.")
+
+        elif cmd == "next":
+            player.next_track()
+            print(f"⏭  {player.get_current_track_name()}")
+
+        elif cmd == "prev":
+            player.previous_track()
+            print(f"⏮  {player.get_current_track_name()}")
+
+        elif cmd == "volume":
+            if len(cmd_parts) == 2 and cmd_parts[1].isdigit():
+                player.set_volume(int(cmd_parts[1]))
+                print(f"🔊 Volume : {player.get_volume()}/100")
+            else:
+                print("Usage : volume [0-100]  (ex: volume 75)")
+
+        elif cmd == "shuffle":
+            state = player.toggle_shuffle()
+            print(f"🔀 Shuffle : {'ON' if state else 'OFF'}")
+
+        elif cmd == "repeat":
+            state = player.toggle_repeat()
+            print(f"🔁 Repeat : {'ON' if state else 'OFF'}")
+
+        elif cmd == "playlist":
+            show_playlist(player)
+
+        elif cmd == "status":
+            show_status(player)
+
+        elif cmd == "progress":
+            show_music_progress(player)
+
+        elif cmd == "help":
+            print(HELP)
+
+        elif cmd == "back":
+            player.stop()
+            print("Retour au menu principal.")
+            break
+
+        else:
+            print("Commande inconnue. Tapez 'help' pour la liste des commandes.")
+
+
 def menu_local(player: MusicPlayer):
     """
     Sous-menu de contrôle du player MP3 local.
@@ -100,111 +235,17 @@ def menu_local(player: MusicPlayer):
     # Démarrage automatique de la première piste
     player.play()
     show_status(player)
-
-    HELP = """
-Commandes disponibles :
-  play / pause  → reprendre ou mettre en pause
-  stop          → arrêter la lecture
-  next          → piste suivante
-  prev          → piste précédente
-  volume [0-100]→ régler le volume  (ex: volume 70)
-  shuffle       → activer/désactiver le mode aléatoire
-  repeat        → activer/désactiver la répétition
-  playlist      → afficher toutes les pistes
-  status        → afficher l'état du player
-  progress      → afficher la barre de progression
-  back          → retourner au menu principal
-"""
-    print(HELP)
-
-    while True:
-        try:
-            cmd = input("Commande > ").strip().lower()
-        except KeyboardInterrupt:
-            print("\nRetour au menu principal.")
-            player.stop()
-            break
-
-        if cmd in ("play", "pause"):
-            player.pause()
-            print("▶  Lecture" if player.is_playing() else "⏸  Pause")
-
-        elif cmd == "stop":
-            player.stop()
-            print("⏹  Lecture arrêtée.")
-
-        elif cmd == "next":
-            player.next_track()
-            print(f"⏭  {player.get_current_track_name()}")
-
-        elif cmd == "prev":
-            player.previous_track()
-            print(f"⏮  {player.get_current_track_name()}")
-
-        elif cmd.startswith("volume"):
-            # Exemple : "volume 75"
-            parts = cmd.split()
-            if len(parts) == 2 and parts[1].isdigit():
-                player.set_volume(int(parts[1]))
-                print(f"🔊 Volume : {player.get_volume()}/100")
-            else:
-                print("Usage : volume [0-100]  (ex: volume 75)")
-
-        elif cmd == "shuffle":
-            state = player.toggle_shuffle()
-            print(f"🔀 Shuffle : {'ON' if state else 'OFF'}")
-
-        elif cmd == "repeat":
-            state = player.toggle_repeat()
-            print(f"🔁 Repeat : {'ON' if state else 'OFF'}")
-
-        elif cmd == "playlist":
-            show_playlist(player)
-
-        elif cmd == "status":
-            show_status(player)
-
-        elif cmd == "progress":
-            # Affiche la barre de progression jusqu'à la fin de la piste
-            show_music_progress(player)
-
-        elif cmd == "back":
-            player.stop()
-            print("Retour au menu principal.")
-            break
-
-        else:
-            print("Commande inconnue. Voici les commandes disponibles :")
-            print(HELP)
+    generic_player_menu(player, 'local')
 
 
 def menu_youtube():
     """
     Sous-menu de recherche et lecture via YouTube Music.
-    Conserve le comportement original du main.py.
     """
     print("\n--- Mode YouTube Music ---")
-    while True:
-        try:
-            query = input("Nom de la musique à rechercher (ou 'back' pour revenir) : ")
-        except KeyboardInterrupt:
-            print("\nRetour au menu principal.")
-            break
-
-        if query.lower() == "back":
-            break
-
-        # Recherche et lecture via le client YouTube Music existant
-        client = client_yt_music.YouTubeMusicClient()
-        client.search_and_play(query)
-
-        # Barre de progression simple (version originale)
-        progress_length = 30
-        for i in range(progress_length + 1):
-            bar = '█' * i + '-' * (progress_length - i)
-            print(f"\r🎵 Lecture en cours: |{bar}| {int((i / progress_length) * 100)}%", end="")
-            time.sleep(0.1)
-        print()
+    client = client_yt_music.YouTubeMusicClient()
+    print("Utilisez 'search [musique]' pour commencer ou 'help' pour les commandes.")
+    generic_player_menu(client, 'youtube')
 
 
 def main():

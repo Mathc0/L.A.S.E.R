@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Titre de l'onglet dans le navigateur -->
+  <title>L.A.S.E.R</title>
+
+  <!-- On relie le fichier CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- Grand conteneur de toute l'application -->
+  <div class="app">
+
+    <!-- Barre latérale à gauche -->
+    <aside class="sidebar">
+      <h1 class="logo">L.A.S.E.R</h1>
+
+      <!-- Boutons menu -->
+      <button class="side-btn active">Accueil</button>
+      <button class="side-btn">Explorer</button>
+      <button class="side-btn">Bibliothèque</button>
+
+      <!-- Bloc actions -->
+      <div class="side-section">
+        <h3>Actions</h3>
+
+        <!-- Bouton pour charger les MP3 locaux -->
+        <button class="side-btn purple" id="loadBtn">Charger les MP3</button>
+
+        <!-- Bouton pour lancer une recherche YouTube -->
+        <button class="side-btn purple" id="youtubeBtn">Recherche YouTube</button>
+      </div>
+
+      <!-- Bloc playlist à gauche -->
+      <div class="side-section">
+        <h3>Playlist</h3>
+        <div id="playlistSidebar"></div>
+      </div>
+    </aside>
+
+    <!-- Partie principale -->
+    <main class="main">
+
+      <!-- Barre du haut -->
+      <header class="topbar">
+
+        <!-- Champ de recherche YouTube -->
+        <input type="text" id="youtubeQuery" placeholder="Chercher une musique YouTube..." />
+
+        <!-- Bouton recherche -->
+        <button id="youtubeSearchBtn">Rechercher</button>
+      </header>
+
+      <!-- Bloc présentation -->
+      <section class="hero">
+        <h2>Lecteur Audio L.A.S.E.R</h2>
+        <p>
+          Interface web reliée à Python avec HTML, CSS, JavaScript et Flask.
+        </p>
+      </section>
+
+      <!-- Zone centrale avec 2 panneaux -->
+      <section class="content">
+
+        <!-- Panneau playlist -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Playlist / File d'attente</h3>
+            <button id="refreshBtn">Actualiser</button>
+          </div>
+
+          <!-- Conteneur qui sera rempli par JavaScript -->
+          <div id="playlistContainer" class="playlist"></div>
+        </div>
+
+        <!-- Panneau statut -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Statut du lecteur</h3>
+          </div>
+
+          <!-- Zone qui affiche les infos du player -->
+          <div id="statusBox" class="status-box">Aucune piste chargée.</div>
+
+          <!-- Boutons shuffle / repeat -->
+          <div class="toggle-row">
+            <button id="shuffleBtn">Shuffle</button>
+            <button id="repeatBtn">Repeat</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Barre du lecteur en bas -->
+    <footer class="player-bar">
+
+      <!-- Partie gauche : musique en cours -->
+      <div class="now-playing">
+        <div class="cover">♪</div>
+        <div>
+          <div id="trackName" class="track-name">Aucune piste</div>
+          <div id="trackInfo" class="track-info">Prêt</div>
+        </div>
+      </div>
+
+      <!-- Partie centrale : boutons + barre de progression -->
+      <div class="controls-area">
+
+        <!-- Boutons du lecteur -->
+        <div class="controls">
+          <button id="prevBtn">⏮</button>
+          <button id="playBtn">▶</button>
+          <button id="pauseBtn">⏸</button>
+          <button id="stopBtn">⏹</button>
+          <button id="nextBtn">⏭</button>
+        </div>
+
+        <!-- Barre de progression -->
+        <div class="progress-row">
+          <span id="currentTime">0:00</span>
+          <input type="range" id="progressBar" min="0" max="100" value="0" />
+          <span id="durationTime">0:00</span>
+        </div>
+      </div>
+
+      <!-- Partie droite : volume -->
+      <div class="volume-box">
+        <label for="volumeSlider">🔊</label>
+        <input type="range" id="volumeSlider" min="0" max="100" value="80" />
+      </div>
+    </footer>
+  </div>
+
+  <!-- On relie le fichier JavaScript -->
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

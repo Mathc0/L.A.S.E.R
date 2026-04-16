@@ -10,7 +10,6 @@ vlc_path = os.path.join(os.getcwd(), "vlc_files")
 os.environ['PATH'] += os.pathsep + vlc_path
 import vlc
 
-
 class YouTubeMusicClient:
     """Client minimal pour jouer ou télécharger de l'audio YouTube."""
 

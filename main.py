@@ -1,95 +1,249 @@
 import time
-from client_yt_music import YouTubeMusicClient
+import client_yt_music
+from player import MusicPlayer
 
-PROGRESS_LENGTH = 30
+# ==============================================================================
+# MAIN.PY — Point d'entrée du projet L.A.S.E.R
+# Intègre le MusicPlayer (fichiers MP3 locaux) et le client YouTube Music.
+# ==============================================================================
 
-def show_music_progress(title: str):
-    """Affiche une barre de progression pour la musique en cours de lecture."""
-    print(f"🎵 Lecture : {title}")
-    for i in range(PROGRESS_LENGTH + 1):
-        bar = '█' * i + '-' * (PROGRESS_LENGTH - i)
-        print(f"\r|{bar}| {int((i / PROGRESS_LENGTH) * 100)}%", end="", flush=True)
-        time.sleep(0.1)
-    print()
+# Dossier contenant les fichiers MP3 locaux
+MUSIC_FOLDER = "./musiques"
 
-def show_help():
+
+def show_music_progress(player: MusicPlayer):
+    """
+    Affiche une barre de progression en temps réel pendant la lecture.
+    Se met à jour toutes les secondes en fonction de la position réelle dans la piste.
+    """
+    print()  # saut de ligne avant la barre
+    while player.is_playing():
+        duration = player.get_duration()
+        position = player.get_position()
+
+        # Si la durée n'est pas encore disponible, on attend
+        if duration <= 0:
+            time.sleep(0.5)
+            continue
+
+        # Calcul du pourcentage de progression
+        progress = min(position / duration, 1.0)
+        filled = int(progress * 30)
+        bar = '█' * filled + '-' * (30 - filled)
+        percent = int(progress * 100)
+
+        # Affichage de la barre + infos sur la même ligne (écrase la ligne précédente)
+        print(
+            f"\r🎵 {player.get_current_track_name()} "
+            f"|{bar}| {percent}% "
+            f"({int(position)}s / {int(duration)}s)",
+            end=""
+        )
+        time.sleep(1)
+
+    print()  # saut de ligne propre après la fin de la barre
+
+
+def show_status(player: MusicPlayer):
+    """
+    Affiche l'état complet du player : piste, volume, modes actifs.
+    """
+    s = player.get_status()
     print(
-        "\nCommandes disponibles :"
-        "\n  play      - Rechercher et lire une musique"
-        "\n  stop      - Arrêter la lecture en cours"
-        "\n  download  - Télécharger une musique en MP3"
-        "\n  help      - Afficher ce menu"
-        "\n  quit      - Quitter L.A.S.E.R\n"
+        f"\n🎵 Piste    : {s['track']}\n"
+        f"   [{s['index']}/{s['total']}] | "
+        f"{'▶  lecture' if s['playing'] else '⏸  pause'} | "
+        f"Volume : {s['volume']}/100\n"
+        f"   Shuffle : {'ON' if s['shuffle'] else 'OFF'} | "
+        f"Repeat  : {'ON' if s['repeat'] else 'OFF'}\n"
     )
 
-def main():
-    print("Bienvenue dans L.A.S.E.R - Le Lecteur Audio de fichier locaux ou en streaming pour la Musique !")
-    show_help()
 
-    client = YouTubeMusicClient()
+def show_playlist(player: MusicPlayer):
+    """
+    Affiche toutes les pistes chargées dans la playlist locale.
+    Indique la piste en cours avec une flèche.
+    """
+    playlist = player.get_playlist()
+    if not playlist:
+        print("⚠️  Aucune piste dans la playlist.")
+        return
+
+    print(f"\n📋 Playlist ({len(playlist)} piste(s)) :")
+    for i, name in enumerate(playlist):
+        marker = "▶ " if i == player.get_current_index() else "  "
+        print(f"  {marker}{i + 1}. {name}")
+    print()
+
+
+def menu_local(player: MusicPlayer):
+    """
+    Sous-menu de contrôle du player MP3 local.
+    Permet de contrôler la lecture, le volume, la navigation et les modes.
+    """
+    print("\n--- Mode MP3 Local ---")
+    print("Dossier :", MUSIC_FOLDER)
+
+    # Chargement de la playlist depuis le dossier
+    try:
+        nb = player.load_folder(MUSIC_FOLDER)
+        if nb == 0:
+            print(f"⚠️  Aucun fichier MP3 trouvé dans '{MUSIC_FOLDER}'.")
+            print("    Ajoutez des fichiers .mp3 dans ce dossier et réessayez.")
+            return
+        print(f"✅  {nb} piste(s) chargée(s).\n")
+    except FileNotFoundError:
+        print(f"⚠️  Le dossier '{MUSIC_FOLDER}' n'existe pas.")
+        print("    Créez un dossier 'musiques/' à la racine du projet et ajoutez vos MP3.")
+        return
+
+    # Démarrage automatique de la première piste
+    player.play()
+    show_status(player)
+
+    HELP = """
+Commandes disponibles :
+  play / pause  → reprendre ou mettre en pause
+  stop          → arrêter la lecture
+  next          → piste suivante
+  prev          → piste précédente
+  volume [0-100]→ régler le volume  (ex: volume 70)
+  shuffle       → activer/désactiver le mode aléatoire
+  repeat        → activer/désactiver la répétition
+  playlist      → afficher toutes les pistes
+  status        → afficher l'état du player
+  progress      → afficher la barre de progression
+  back          → retourner au menu principal
+"""
+    print(HELP)
 
     while True:
         try:
-            choice = input("Commande > ").strip().lower()
+            cmd = input("Commande > ").strip().lower()
         except KeyboardInterrupt:
-            print("\nAu revoir.")
-            client.stop()
+            print("\nRetour au menu principal.")
+            player.stop()
             break
 
-        if choice == 'play':
-            try:
-                query = input("Nom de la musique : ").strip()
-            except KeyboardInterrupt:
-                print("\nRetour au menu.")
-                continue
+        if cmd in ("play", "pause"):
+            player.pause()
+            print("▶  Lecture" if player.is_playing() else "⏸  Pause")
 
-            if not query:
-                print("Aucune recherche saisie.")
-                continue
+        elif cmd == "stop":
+            player.stop()
+            print("⏹  Lecture arrêtée.")
 
-            try:
-                print("Recherche en cours...")
-                title = client.search_and_play(query)
-                show_music_progress(title or query)
-            except ValueError as e:
-                print(f"Introuvable : {e}")
-            except Exception as e:
-                print(f"Erreur lors de la lecture : {e}")
+        elif cmd == "next":
+            player.next_track()
+            print(f"⏭  {player.get_current_track_name()}")
 
-        elif choice == 'stop':
-            client.stop()
-            print("Lecture arrêtée.")
+        elif cmd == "prev":
+            player.previous_track()
+            print(f"⏮  {player.get_current_track_name()}")
 
-        elif choice == 'download':
-            try:
-                query = input("Nom de la musique à télécharger : ").strip()
-            except KeyboardInterrupt:
-                print("\nRetour au menu.")
-                continue
+        elif cmd.startswith("volume"):
+            # Exemple : "volume 75"
+            parts = cmd.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                player.set_volume(int(parts[1]))
+                print(f"🔊 Volume : {player.get_volume()}/100")
+            else:
+                print("Usage : volume [0-100]  (ex: volume 75)")
 
-            if not query:
-                print("Aucune recherche saisie.")
-                continue
+        elif cmd == "shuffle":
+            state = player.toggle_shuffle()
+            print(f"🔀 Shuffle : {'ON' if state else 'OFF'}")
 
-            try:
-                print("Téléchargement en cours...")
-                title = client.download_audio(query)
-                print(f"✅ Téléchargé : {title or query}")
-            except RuntimeError as e:
-                print(f"Erreur : {e}")
+        elif cmd == "repeat":
+            state = player.toggle_repeat()
+            print(f"🔁 Repeat : {'ON' if state else 'OFF'}")
 
-        elif choice == 'help':
-            show_help()
+        elif cmd == "playlist":
+            show_playlist(player)
 
-        elif choice == 'quit':
-            print("Merci d'avoir utilisé L.A.S.E.R. À bientôt !")
-            client.stop()
+        elif cmd == "status":
+            show_status(player)
+
+        elif cmd == "progress":
+            # Affiche la barre de progression jusqu'à la fin de la piste
+            show_music_progress(player)
+
+        elif cmd == "back":
+            player.stop()
+            print("Retour au menu principal.")
             break
-
-        elif choice == '':
-            continue
 
         else:
-            print(f"Commande inconnue : '{choice}'. Tapez 'help' pour la liste des commandes.")
+            print("Commande inconnue. Voici les commandes disponibles :")
+            print(HELP)
+
+
+def menu_youtube():
+    """
+    Sous-menu de recherche et lecture via YouTube Music.
+    Conserve le comportement original du main.py.
+    """
+    print("\n--- Mode YouTube Music ---")
+    while True:
+        try:
+            query = input("Nom de la musique à rechercher (ou 'back' pour revenir) : ")
+        except KeyboardInterrupt:
+            print("\nRetour au menu principal.")
+            break
+
+        if query.lower() == "back":
+            break
+
+        # Recherche et lecture via le client YouTube Music existant
+        client = client_yt_music.YouTubeMusicClient()
+        client.search_and_play(query)
+
+        # Barre de progression simple (version originale)
+        progress_length = 30
+        for i in range(progress_length + 1):
+            bar = '█' * i + '-' * (progress_length - i)
+            print(f"\r🎵 Lecture en cours: |{bar}| {int((i / progress_length) * 100)}%", end="")
+            time.sleep(0.1)
+        print()
+
+
+def main():
+    """
+    Menu principal de L.A.S.E.R.
+    Permet de choisir entre le mode MP3 local et le mode YouTube Music.
+    """
+    # Initialisation du player local (sans charger de dossier pour l'instant)
+    player = MusicPlayer()
+
+    print("╔══════════════════════════════════════════════╗")
+    print("║  Bienvenue dans L.A.S.E.R                   ║")
+    print("║  Lecteur Audio de Streaming pour la Musique ║")
+    print("╚══════════════════════════════════════════════╝\n")
+
+    while True:
+        print("Que voulez-vous faire ?")
+        print("  1. local   → Lire des MP3 depuis le dossier 'musiques/'")
+        print("  2. youtube → Rechercher une musique sur YouTube Music")
+        print("  3. quit    → Quitter\n")
+
+        try:
+            choice = input("Votre choix : ").strip().lower()
+        except KeyboardInterrupt:
+            print("\nAu revoir !")
+            break
+
+        if choice in ("1", "local"):
+            menu_local(player)
+
+        elif choice in ("2", "youtube"):
+            menu_youtube()
+
+        elif choice in ("3", "quit"):
+            print("Merci d'avoir utilisé L.A.S.E.R. À bientôt !")
+            break
+
+        else:
+            print("Choix invalide, veuillez réessayer.\n")
+
 
 main()

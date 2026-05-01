@@ -5,6 +5,9 @@ Lecteur audio YouTube avec streaming VLC.
 
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
+import static_ffmpeg
+import contextlib
+import io
 import os
 vlc_path = os.path.join(os.getcwd(), "vlc_files")
 os.environ['PATH'] += os.pathsep + vlc_path
@@ -65,11 +68,22 @@ class YouTubeMusicClient:
 
     def download_audio(self, query, output_path='%(title)s.%(ext)s'):
         """Télécharge l'audio de la première vidéo YouTube correspondant à la recherche."""
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            static_ffmpeg.add_paths()
+
+        def _progress_hook(d):
+            if d['status'] == 'downloading':
+                percent = d.get('_percent_str', '').strip()
+                print(f"\rTéléchargement... {percent}", end='', flush=True)
+            elif d['status'] == 'finished':
+                print("\rTéléchargement... 100%           ")
+
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': output_path,
             'quiet': True,
             'no_warnings': True,
+            'progress_hooks': [_progress_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',

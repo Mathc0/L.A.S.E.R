@@ -40,9 +40,13 @@ class MusicPlayer:
                              de load_folder().
         """
         # --- Initialisation du moteur VLC ---
-        # On crée une instance VLC (le moteur principal) ainsi qu'un
-        # MediaListPlayer qui gère la lecture d'une liste de pistes.
-        self._instance = vlc.Instance()
+        # Configure VLC to use PulseAudio and avoid PipeWire issues
+        vlc_args = [
+            '--no-video',  # No video output needed
+            '--aout=pulse',  # Use PulseAudio directly
+            '--audio-filter=',  # Disable audio filters that might cause issues
+        ]
+        self._instance = vlc.Instance(vlc_args)
         self._list_player = self._instance.media_list_player_new()
         self._media_list = self._instance.media_list_new()
         self._list_player.set_media_list(self._media_list)
@@ -58,8 +62,7 @@ class MusicPlayer:
         self._shuffle = False        # mode aléatoire désactivé par défaut
         self._repeat = False         # mode répétition désactivé par défaut
 
-        # Applique le volume par défaut
-        self._player.audio_set_volume(self._volume)
+        # Note: Volume setting moved to after media loading to avoid initialization issues
 
         # --- Chargement automatique si un dossier est fourni ---
         if music_folder:
@@ -96,7 +99,11 @@ class MusicPlayer:
         # Associe la nouvelle liste VLC au player
         self._list_player.set_media_list(self._media_list)
         self._player = self._list_player.get_media_player()
-        self._player.audio_set_volume(self._volume)
+        # Set volume after media list is configured
+        try:
+            self._player.audio_set_volume(self._volume)
+        except Exception as e:
+            print(f"[Player] Warning: Could not set initial volume: {e}")
         self._current_index = 0
 
         return len(self._playlist)
@@ -203,13 +210,20 @@ class MusicPlayer:
         if not (0 <= volume <= 100):
             raise ValueError("Le volume doit être compris entre 0 et 100.")
         self._volume = volume
-        self._player.audio_set_volume(self._volume)
+        try:
+            self._player.audio_set_volume(self._volume)
+        except Exception as e:
+            print(f"[Player] Warning: Could not set volume to {self._volume}: {e}")
 
     def get_volume(self) -> int:
         """
         Retourne le volume actuel (0-100).
         """
-        return self._player.audio_get_volume()
+        try:
+            return self._player.audio_get_volume()
+        except Exception as e:
+            print(f"[Player] Warning: Could not get volume: {e}")
+            return self._volume  # Return stored value as fallback
 
     def volume_up(self, step: int = 5):
         """

@@ -32,7 +32,13 @@ class YouTubeMusicClient:
     """
 
     def __init__(self):
-        self._vlc_instance = vlc.Instance()
+        # Configure VLC to avoid PipeWire issues
+        vlc_args = [
+            '--no-video',  # No video output needed
+            '--aout=pulse',  # Use PulseAudio directly
+            '--audio-filter=',  # Disable audio filters that might cause issues
+        ]
+        self._vlc_instance = vlc.Instance(vlc_args)
         self._player = self._vlc_instance.media_player_new()
 
         # Playlist interne : liste de dicts {title, url}
@@ -42,7 +48,7 @@ class YouTubeMusicClient:
         self._shuffle = False
         self._repeat = False
 
-        self._player.audio_set_volume(self._volume)
+        # Note: Volume setting moved to after media loading to avoid initialization issues
 
         # Gestionnaire d'événements pour la fin de piste
         self._event_manager = self._player.event_manager()
@@ -209,11 +215,18 @@ class YouTubeMusicClient:
         if not (0 <= volume <= 100):
             raise ValueError("Le volume doit être compris entre 0 et 100.")
         self._volume = volume
-        self._player.audio_set_volume(self._volume)
+        try:
+            self._player.audio_set_volume(self._volume)
+        except Exception as e:
+            print(f"[YouTube] Warning: Could not set volume to {self._volume}: {e}")
 
     def get_volume(self) -> int:
         """Retourne le volume actuel (0-100)."""
-        return self._volume
+        try:
+            return self._player.audio_get_volume()
+        except Exception as e:
+            print(f"[YouTube] Warning: Could not get volume: {e}")
+            return self._volume  # Return stored value as fallback
 
     def volume_up(self, step: int = 5):
         """Augmente le volume d'un certain nombre de points (défaut : 5)."""
@@ -377,5 +390,8 @@ class YouTubeMusicClient:
         self._player.stop()
         media = self._vlc_instance.media_new(url)
         self._player.set_media(media)
-        self._player.audio_set_volume(self._volume)
+        try:
+            self._player.audio_set_volume(self._volume)
+        except Exception as e:
+            print(f"[YouTube] Warning: Could not set volume: {e}")
         self._player.play()

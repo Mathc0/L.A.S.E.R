@@ -2,6 +2,7 @@ import time
 import client_yt_music
 from player import MusicPlayer
 from add_audio import add_audio_to_database, DB_PATH
+from del_audio import list_musiques, delete_music
 import os
 # ==============================================================================
 # MAIN.PY — Point d'entrée du projet L.A.S.E.R
@@ -226,10 +227,11 @@ def main():
 
     while True:
         print("Que voulez-vous faire ?")
-        print("  1. local   → Lire des MP3 depuis le dossier 'musiques/'")
-        print("  2. youtube → Rechercher une musique sur YouTube Music")
+        print("  1. local    → Lire des MP3 depuis le dossier 'musiques/'")
+        print("  2. youtube  → Rechercher une musique sur YouTube Music")
         print("  3. download → Télécharger + ajouter en base + lire")
-        print("  4. quit     → Quitter\n")
+        print("  4. delete   → Supprimer une musique de la base et du dossier")
+        print("  5. quit     → Quitter\n")
 
         try:
             choice = input("Votre choix : ").strip().lower()
@@ -276,7 +278,37 @@ def main():
             except Exception as e:
                 print(f"❌ Erreur : {e}")
 
-        elif choice in ("4", "quit"):
+        elif choice in ("4", "delete"):
+            rows = list_musiques()
+            if not rows:
+                print("⚠️  Aucune musique en base.\n")
+            else:
+                print(f"\n  {'ID':<4} {'Artiste':<20} Nom")
+                print("  " + "-" * 65)
+                for row_id, nom, artiste, duree in rows:
+                    duree_str = f"{duree}s" if duree else "?"
+                    print(f"  {row_id:<4} {(artiste or '?'):<20} {nom}  [{duree_str}]")
+                print()
+                try:
+                    raw = input("ID à supprimer (ou 'back' pour annuler) : ").strip()
+                    if raw.lower() != "back" and raw.isdigit():
+                        music_id = int(raw)
+                        if any(r[0] == music_id for r in rows):
+                            result = delete_music(music_id)
+                            print(f"✅ Supprimé : {result['Nom']}")
+                            if result["fichier_supprime"]:
+                                print(f"   Fichier supprimé : {result['chemin']}")
+                            else:
+                                print(f"⚠️  Fichier introuvable : {result['chemin']}")
+                        else:
+                            print("❌ ID invalide.")
+                    else:
+                        print("Annulé.")
+                except KeyboardInterrupt:
+                    print("\nAnnulé.")
+            print()
+
+        elif choice in ("5", "quit"):
             print("Merci d'avoir utilisé L.A.S.E.R. À bientôt !")
             break
 

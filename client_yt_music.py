@@ -89,6 +89,18 @@ class YouTubeMusicClient:
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            # Robustesse réseau : retries + fragments + user-agent navigateur
+            'retries': 10,
+            'fragment_retries': 10,
+            'http_chunk_size': 1048576,  # 1 Mo par fragment pour éviter les coupures
+            'socket_timeout': 30,
+            'http_headers': {
+                'User-Agent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/124.0.0.0 Safari/537.36'
+                ),
+            },
         }
 
         try:

@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS Musique (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Nom TEXT NOT NULL,
+    Artiste TEXT,
+    Nom_Album TEXT,
+    Duree INTEGER
+);

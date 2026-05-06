@@ -6,6 +6,9 @@ Interface identique à MusicPlayer pour une utilisation uniforme.
 
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
+import static_ffmpeg
+import contextlib
+import io
 import os
 import random
 import subprocess
@@ -129,224 +132,44 @@ class YouTubeMusicClient:
                 )
                 audio_url = best_format['url']
 
-            return entry.get('title', query), audio_url
+            self._play_url(audio_url)
+            return entry.get('title')
 
-    # ==========================================================================
-    # CONTRÔLES DE LECTURE (Play / Pause / Stop)
-    # ==========================================================================
+    def download_audio(self, query, output_path='%(title)s.%(ext)s'):
+        """Télécharge l'audio de la première vidéo YouTube correspondant à la recherche."""
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            static_ffmpeg.add_paths()
 
-    def play(self, index: int = None):
-        """
-        Démarre ou reprend la lecture.
+        def _progress_hook(d):
+            if d['status'] == 'downloading':
+                percent = d.get('_percent_str', '').strip()
+                print(f"\rTéléchargement... {percent}", end='', flush=True)
+            elif d['status'] == 'finished':
+                print("\rTéléchargement... 100%           ")
 
-        :param index: si fourni, joue directement la piste à cet index.
-                      Si None, reprend la piste en cours.
-        """
-        if not self._playlist:
-            print("[YouTube] La playlist est vide. Recherchez une piste d'abord.")
-            return
-
-        if index is not None:
-            if not (0 <= index < len(self._playlist)):
-                raise IndexError(f"Index {index} hors de la playlist ({len(self._playlist)} pistes).")
-            self._current_index = index
-            self._play_url(self._playlist[self._current_index]['url'])
-        else:
-            # Reprend si en pause, sinon joue la piste courante depuis le début
-            state = self._player.get_state()
-            if state == vlc.State.Paused:
-                self._player.pause()  # toggle pause → lecture
-            else:
-                self._play_url(self._playlist[self._current_index]['url'])
-
-    def pause(self):
-        """
-        Met en pause si en lecture, reprend si en pause (toggle).
-        """
-        self._player.pause()
-
-    def stop(self):
-        """
-        Arrête complètement la lecture.
-        """
-        self._player.stop()
-
-    # ==========================================================================
-    # NAVIGATION DANS LA PLAYLIST (Suivant / Précédent)
-    # ==========================================================================
-
-    def next_track(self):
-        """
-        Passe à la piste suivante dans la playlist (cyclique).
-        En mode shuffle, choisit une piste aléatoire différente.
-        """
-        if not self._playlist:
-            return
-
-        if self._shuffle:
-            candidates = [i for i in range(len(self._playlist)) if i != self._current_index]
-            if candidates:
-                self._current_index = random.choice(candidates)
-        else:
-            self._current_index = (self._current_index + 1) % len(self._playlist)
-
-        self._play_url(self._playlist[self._current_index]['url'])
-
-    def previous_track(self):
-        """
-        Revient à la piste précédente dans la playlist (cyclique).
-        """
-        if not self._playlist:
-            return
-
-        self._current_index = (self._current_index - 1) % len(self._playlist)
-        self._play_url(self._playlist[self._current_index]['url'])
-
-    # ==========================================================================
-    # CONTRÔLE DU VOLUME
-    # ==========================================================================
-
-    def set_volume(self, volume: int):
-        """
-        Définit le volume de lecture.
-
-        :param volume: entier entre 0 (muet) et 100 (maximum).
-        """
-        if not (0 <= volume <= 100):
-            raise ValueError("Le volume doit être compris entre 0 et 100.")
-        self._volume = volume
-        try:
-            self._player.audio_set_volume(self._volume)
-        except Exception as e:
-            print(f"[YouTube] Warning: Could not set volume to {self._volume}: {e}")
-
-    def get_volume(self) -> int:
-        """Retourne le volume actuel (0-100)."""
-        try:
-            return self._player.audio_get_volume()
-        except Exception as e:
-            print(f"[YouTube] Warning: Could not get volume: {e}")
-            return self._volume  # Return stored value as fallback
-
-    def volume_up(self, step: int = 5):
-        """Augmente le volume d'un certain nombre de points (défaut : 5)."""
-        self.set_volume(min(100, self.get_volume() + step))
-
-    def volume_down(self, step: int = 5):
-        """Diminue le volume d'un certain nombre de points (défaut : 5)."""
-        self.set_volume(max(0, self.get_volume() - step))
-
-    # ==========================================================================
-    # MODES DE LECTURE (Shuffle / Repeat)
-    # ==========================================================================
-
-    def toggle_shuffle(self) -> bool:
-        """
-        Active ou désactive le mode aléatoire.
-
-        :return: True si le shuffle est maintenant actif, False sinon.
-        """
-        self._shuffle = not self._shuffle
-        return self._shuffle
-
-    def toggle_repeat(self) -> bool:
-        """
-        Active ou désactive la répétition de la playlist.
-
-        :return: True si le repeat est maintenant actif, False sinon.
-        """
-        self._repeat = not self._repeat
-        return self._repeat
-
-    # ==========================================================================
-    # INFORMATIONS SUR LA PISTE EN COURS
-    # ==========================================================================
-
-    def get_current_track_name(self) -> str:
-        """Retourne le titre de la piste en cours."""
-        if not self._playlist:
-            return "Aucune piste"
-        return self._playlist[self._current_index]['title']
-
-    def get_current_index(self) -> int:
-        """Retourne l'index (0-based) de la piste en cours."""
-        return self._current_index
-
-    def get_playlist(self) -> list:
-        """Retourne la liste des titres de la playlist."""
-        return [track['title'] for track in self._playlist]
-
-    def get_duration(self) -> float:
-        """
-        Retourne la durée totale de la piste en cours en secondes.
-        Retourne -1 si non disponible.
-        """
-        ms = self._player.get_length()
-        return ms / 1000 if ms > 0 else -1
-
-    def get_position(self) -> float:
-        """
-        Retourne la position de lecture actuelle en secondes.
-        Retourne -1 si aucune piste n'est en cours.
-        """
-        ms = self._player.get_time()
-        return ms / 1000 if ms >= 0 else -1
-
-    def seek(self, seconds: float):
-        """
-        Déplace la tête de lecture à une position donnée en secondes.
-
-        :param seconds: position cible en secondes depuis le début.
-        """
-        ms = int(seconds * 1000)
-        self._player.set_time(ms)
-
-    def is_playing(self) -> bool:
-        """Retourne True si une piste est en cours de lecture."""
-        return self._player.is_playing() == 1
-
-    def get_status(self) -> dict:
-        """
-        Retourne un dictionnaire récapitulatif de l'état complet du client.
-        Interface identique à MusicPlayer.get_status().
-
-        :return: dict avec les clés : track, index, total, playing,
-                 volume, shuffle, repeat, position, duration.
-        """
-        return {
-            "track":    self.get_current_track_name(),
-            "index":    self._current_index + 1,
-            "total":    len(self._playlist),
-            "playing":  self.is_playing(),
-            "volume":   self.get_volume(),
-            "shuffle":  self._shuffle,
-            "repeat":   self._repeat,
-            "position": round(self.get_position(), 1),
-            "duration": round(self.get_duration(), 1),
-        }
-
-    # ==========================================================================
-    # TÉLÉCHARGEMENT
-    # ==========================================================================
-
-    def download_audio(self, query: str, output_path: str = '%(title)s.%(ext)s') -> str:
-        """
-        Télécharge l'audio de la première vidéo YouTube correspondant à la recherche.
-
-        :param query: terme de recherche.
-        :param output_path: chemin de sortie (template yt-dlp).
-        :return: titre de la piste téléchargée.
-        """
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': output_path,
             'quiet': True,
             'no_warnings': True,
+            'progress_hooks': [_progress_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            # Robustesse réseau : retries + fragments + user-agent navigateur
+            'retries': 10,
+            'fragment_retries': 10,
+            'http_chunk_size': 1048576,  # 1 Mo par fragment pour éviter les coupures
+            'socket_timeout': 30,
+            'http_headers': {
+                'User-Agent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/124.0.0.0 Safari/537.36'
+                ),
+            },
         }
 
         try:

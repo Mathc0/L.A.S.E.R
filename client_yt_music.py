@@ -13,6 +13,8 @@ import os
 import random
 import subprocess
 
+import platform
+
 vlc_path = os.path.join(os.getcwd(), "vlc_files")
 os.environ['PATH'] += os.pathsep + vlc_path
 import vlc
@@ -35,13 +37,11 @@ class YouTubeMusicClient:
     """
 
     def __init__(self):
-        # Configure VLC to avoid PipeWire issues
-        vlc_args = [
-            '--no-video',  # No video output needed
-            '--aout=pulse',  # Use PulseAudio directly
-            '--audio-filter=',  # Disable audio filters that might cause issues
-        ]
+        vlc_args = ['--no-video', '--quiet', '--verbose=-1']
+        if platform.system() == 'Linux':
+            vlc_args.append('--aout=pulse')
         self._vlc_instance = vlc.Instance(vlc_args)
+        self._vlc_instance.log_unset()
         self._player = self._vlc_instance.media_player_new()
 
         # Playlist interne : liste de dicts {title, url}

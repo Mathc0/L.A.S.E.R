@@ -1,7 +1,7 @@
 import time
 import client_yt_music
 from player import MusicPlayer
-from add_audio import add_audio_to_database
+from add_audio import add_audio_to_database, DB_PATH
 import os
 # ==============================================================================
 # MAIN.PY — Point d'entrée du projet L.A.S.E.R
@@ -166,8 +166,11 @@ Commandes disponibles :
             show_status(player)
 
         elif cmd == "progress":
-            # Affiche la barre de progression jusqu'à la fin de la piste
-            show_music_progress(player)
+            try:
+                show_music_progress(player)
+            except KeyboardInterrupt:
+                print("\nProgression interrompue.")
+                continue
 
         elif cmd == "back":
             player.stop()
@@ -245,7 +248,7 @@ def main():
                 query = input("Nom de la musique à télécharger : ")
 
                 # Télécharge + ajoute en base
-                result = add_audio_to_database(query)
+                result = add_audio_to_database(query, db_path=DB_PATH)
 
                 print(f"\n✅ Ajouté en base : {result['Nom']} - {result['Artiste']}")
 

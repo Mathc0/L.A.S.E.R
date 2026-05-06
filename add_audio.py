@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS Musique (
 class MusicDatabase:
     """Gestion simple de la base SQLite des musiques."""
 
-    def __init__(self, db_path: str = DB_PATH):
+    def __init__(self, db_path: str):
         self.db_path = db_path
         self._initialize()
 
@@ -103,7 +103,7 @@ def fetch_music_metadata(query: str) -> Dict[str, Optional[object]]:
     }
 
 
-def add_audio_to_database(query: str, db_path: str = DB_PATH, download_dir: str = DOWNLOAD_DIR) -> Dict[str, Optional[object]]:
+def add_audio_to_database(query: str, db_path: str, download_dir: str = DOWNLOAD_DIR) -> Dict[str, Optional[object]]:
     """
     Télécharge l'audio via download_audio(), puis ajoute ses métadonnées à la base SQLite.
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
     if not query:
         raise ValueError("La recherche ne peut pas être vide.")
 
-    inserted = add_audio_to_database(query)
+    inserted = add_audio_to_database(query, db_path=DB_PATH)
     print("Musique ajoutée avec succès :")
     print(f"  ID        : {inserted['id']}")
     print(f"  Nom       : {inserted['Nom']}")

@@ -221,8 +221,8 @@ def main():
     player = MusicPlayer()
 
     print("╔══════════════════════════════════════════════╗")
-    print("║  Bienvenue dans L.A.S.E.R                   ║")
-    print("║  Lecteur Audio de Streaming pour la Musique ║")
+    print("║  Bienvenue dans L.A.S.E.R                    ║")
+    print("║  Lecteur Audio de Streaming pour la Musique  ║")
     print("╚══════════════════════════════════════════════╝\n")
 
     while True:

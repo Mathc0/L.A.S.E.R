@@ -1,5 +1,7 @@
 # Les musiques téléchargées
 *.mp3
-
 # La base de données
 *.db
+# Les fichiers de cache
+__pycache__/
+*.pyc

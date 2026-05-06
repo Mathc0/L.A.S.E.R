@@ -1,9 +1,12 @@
 # L.A.S.E.R
+
+## Description de l'application
+
 L.A.S.E.R. : Lecteur Audio Sans Efficacité Réelle
 
-Il s'agit d'un lecteur de fichier audio MP3 et probablement Youtube Music
+Il s'agit d'un lecteur de fichier audio MP3 et Youtube Music fontionant sous Windows.
 
-Instructions d'instalation : 
+## Instructions d'instalation : 
 
 1. Installer VLC (Si le runner Python est en 32bit la version 32bit, si il est en 64bit la version 64bit, etc...)
 2. S'assurer que les dépendances pythons dans requirement sont bien installées

@@ -1,0 +1,6 @@
+fonction shuffle à revoir
+bug lors du changement de musique pour la barre de progression
+le changement de musique quand l'une est fini n'affecte pas le next ni le prev (cause du bug de la barre de progression?)
+la fonction repeat ne fonctionne pas
+les commandes du search font planter le prog (à enlever ?) sauf search. fonction add trouve une musique mais l'ajoute nul part.
+probleme avec le volume certaine musique sont plus forte que d'autre avec les mêmes paramètres (je pense ça viens des clips)

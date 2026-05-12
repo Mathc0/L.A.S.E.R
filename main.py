@@ -271,7 +271,7 @@ def main():
         print("Que voulez-vous faire ?")
         print("  1. local    → Lire des MP3 depuis le dossier 'musiques/'")
         print("  2. youtube  → Rechercher une musique sur YouTube Music")
-        print("  3. download → Télécharger + ajouter en base + lire")
+        print("  3. download → Télécharger + ajouter en base")
         print("  4. delete   → Supprimer une musique de la base et du dossier")
         print("  5. quit     → Quitter\n")
 
@@ -295,27 +295,6 @@ def main():
                 result = add_audio_to_database(query, db_path=DB_PATH)
 
                 print(f"\n✅ Ajouté en base : {result['Nom']} - {result['Artiste']}")
-
-                # Chemin du fichier téléchargé
-                music_folder = "./musiques"
-
-                # Recharge le player avec les nouvelles musiques
-                player.load_folder(music_folder)
-
-                # Trouver l'index de la musique téléchargée
-                playlist = player.get_playlist()
-
-                # On cherche la musique par nom
-                index = next(
-                    (i for i, name in enumerate(playlist) if result['Nom'].lower() in name.lower()),
-                    None
-                )
-
-                if index is not None:
-                    player.play(index)
-                    print(f"▶ Lecture : {player.get_current_track_name()}")
-                else:
-                    print("⚠️ Musique téléchargée mais non trouvée dans la playlist.")
 
             except Exception as e:
                 print(f"❌ Erreur : {e}")

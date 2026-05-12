@@ -24,7 +24,7 @@ class YouTubeMusicClient:
     """
     Client YouTube Music avec streaming VLC.
 
-    Fonctionnalités (identiques à MusicPlayer) :
+    Fonctionnalités :
       - Rechercher et ajouter des pistes YouTube dans une playlist
       - Play / Pause / Stop
       - Piste suivante / précédente

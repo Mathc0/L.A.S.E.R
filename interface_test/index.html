@@ -4,114 +4,103 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>L.A.S.E.R</title>
-  <link rel="stylesheet" href="/interface_test/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-icon">L</div>
+       
         <div>
-          <h1>L.A.S.E.R</h1>
-          <p>Lecteur audio Python</p>
+          <h1 class="logo">L.A.S.E.R</h1>
+          <p>Python Audio Player</p>
         </div>
       </div>
 
-      <button class="side-btn active">🏠 Accueil</button>
-      <button class="side-btn">🎵 Bibliothèque</button>
-      <button class="side-btn" id="loadBtn">📁 Charger les MP3</button>
-      <button class="side-btn">▶️ YouTube</button>
+      <nav class="side-nav">
+        <button class="side-btn active">🏠 Accueil</button>
+        <button class="side-btn">🔍 Explorer</button>
+        <button class="side-btn">🎵 Bibliothèque</button>
+        <button class="side-btn" id="loadBtn">📂 Charger les MP3</button>
+      </nav>
 
       <div class="side-section">
         <div class="section-title">
-          <h3>Playlists</h3>
-          <button id="newPlaylistBtn" title="Créer une playlist">+</button>
+          <span>Playlists</span>
+          <button id="createPlaylistBtn" class="small-plus">+</button>
         </div>
+
         <div id="playlistMenu" class="playlist-menu"></div>
       </div>
+
+      
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <button class="mobile-btn" id="mobileBtn">☰</button>
+        <button class="mobile-menu" id="mobileMenuBtn">☰</button>
+
         <div class="search-box">
-          <span>🔎</span>
-          <input type="text" id="searchInput" placeholder="Rechercher un titre..." />
+          <span>🔍</span>
+          <input type="text" id="searchInput" placeholder="Rechercher un titre, un artiste..." />
         </div>
-        <button class="top-btn" id="refreshBtn">Actualiser</button>
+
+        <button class="top-action" id="youtubeBtn">YouTube</button>
       </header>
 
       <section class="hero">
-        <div>
-          <p class="hero-small">LECTEUR WEB</p>
-          <h2>Bienvenue sur L.A.S.E.R</h2>
+        <div class="hero-content">
+          <p class="hero-small">LECTEUR AUDIO MODERNE</p>
+          <h2>Bienvenue sur notre Projet L.A.S.E.R </h2>
           <p class="hero-text">
-            Interface moderne inspirée de Spotify / Deezer, prête à être connectée à votre projet Python :
-            lecture MP3, playlist, volume, progression, shuffle, repeat et YouTube.
+            Un lecteur de musique qui permet de lire des fichiers MP3 en local ou bien en le rechechant grâce à l'intégration YouTube Music.
           </p>
           <div class="hero-actions">
-            <button class="primary" id="heroLoadBtn">Charger les MP3</button>
-            <button class="secondary" id="createPlaylistHeroBtn">Créer une playlist</button>
+            <button id="heroPlayBtn">▶ Lancer</button>
+            <button id="heroLoadBtn" class="ghost-btn">Charger MP3</button> 
           </div>
         </div>
-
-        <div class="hero-cover">
-          <div class="big-cover" id="bigCover">♪</div>
-          <p id="bigCoverTitle">Aucune piste</p>
-        </div>
+        <div class="hero-cover" id="heroCover">♪</div>
       </section>
 
       <section class="content">
-        <div class="panel">
+        <div class="panel playlist-panel">
           <div class="panel-header">
             <div>
+              <p class="eyebrow">Bibliothèque</p>
               <h3 id="playlistTitle">Playlist locale</h3>
-              <p id="playlistSubtitle">Clique sur une musique pour la lancer.</p>
             </div>
-            <span class="pill" id="trackCount">0 titre</span>
+            <span id="trackCount" class="badge">0 titre</span>
           </div>
-
           <div id="playlistContainer" class="playlist"></div>
         </div>
 
-        <div class="right-column">
-          <div class="panel">
-            <div class="panel-header">
-              <div>
-                <h3>Recherche YouTube</h3>
-                <p>Prévu pour être connecté à client_yt_music.py.</p>
-              </div>
+        <aside class="panel status-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">État</p>
+              <h3>Infos lecteur</h3>
             </div>
-            <div class="youtube-box">
-              <input type="text" id="youtubeQuery" placeholder="Rechercher une musique YouTube..." />
-              <button id="youtubeBtn">Rechercher</button>
-            </div>
-            <p class="help-text">
-              Plus tard, ce bouton pourra appeler une route Python comme <code>/api/youtube</code>.
-            </p>
           </div>
 
-          <div class="panel">
-            <div class="panel-header">
-              <div>
-                <h3>Infos lecteur</h3>
-                <p>État actuel de la lecture.</p>
-              </div>
-            </div>
-            <div id="statusBox" class="status-box"></div>
-            <div class="toggle-row">
-              <button id="shuffleBtn">🔀 Shuffle</button>
-              <button id="repeatBtn">🔁 Repeat</button>
-            </div>
+          <div class="large-cover" id="largeCover">♪</div>
+          <div id="statusBox" class="status-box"></div>
+
+          <div class="toggle-row">
+            <button id="shuffleBtn">🔀 Shuffle</button>
+            <button id="repeatBtn">🔄️ Repeat</button>
           </div>
-        </div>
+        </aside>
       </section>
     </main>
 
     <footer class="player-bar">
       <div class="now-playing">
-        <div class="cover" id="smallCover">♪</div>
-        <div class="track-meta">
+        <div class="cover" id="bottomCover">♪</div>
+        <div class="track-texts">
           <div id="trackName" class="track-name">Aucune piste</div>
           <div id="trackInfo" class="track-info">Prêt</div>
         </div>
@@ -119,10 +108,10 @@
 
       <div class="controls-area">
         <div class="controls">
-          <button id="prevBtn">⏮</button>
-          <button id="playPauseBtn" class="play-main">▶</button>
-          <button id="stopBtn">⏹</button>
-          <button id="nextBtn">⏭</button>
+          <button id="prevBtn" title="Précédent">⏮</button>
+          <button id="playPauseBtn" class="main-control" title="Play/Pause">▶</button>
+          <button id="stopBtn" title="Stop">⏹</button>
+          <button id="nextBtn" title="Suivant">⏭</button>
         </div>
 
         <div class="progress-row">
@@ -140,6 +129,6 @@
     </footer>
   </div>
 
-  <script src="/interface_test/script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

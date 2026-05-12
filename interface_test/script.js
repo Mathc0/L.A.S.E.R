@@ -1,18 +1,14 @@
-/*
-  L.A.S.E.R - Interface web responsive
-  Version pensée pour :
-  - montrer une belle maquette en HTML/CSS/JS
-  - créer des playlists côté interface
-  - être connectée plus tard à un backend Python avec fetch('/api/...')
-*/
+const API_MODE = false;
 
-// Éléments HTML
 const sidebar = document.getElementById("sidebar");
-const mobileBtn = document.getElementById("mobileBtn");
-const playlistContainer = document.getElementById("playlistContainer");
+const mobileMenuBtn = document.getElementById("mobileMenuBtn");
 const playlistMenu = document.getElementById("playlistMenu");
-const statusBox = document.getElementById("statusBox");
+const playlistContainer = document.getElementById("playlistContainer");
 const searchInput = document.getElementById("searchInput");
+const trackCount = document.getElementById("trackCount");
+const playlistTitle = document.getElementById("playlistTitle");
+const statusBox = document.getElementById("statusBox");
+
 const trackName = document.getElementById("trackName");
 const trackInfo = document.getElementById("trackInfo");
 const currentTime = document.getElementById("currentTime");
@@ -20,29 +16,27 @@ const durationTime = document.getElementById("durationTime");
 const progressBar = document.getElementById("progressBar");
 const volumeSlider = document.getElementById("volumeSlider");
 const volumeValue = document.getElementById("volumeValue");
+
+const playPauseBtn = document.getElementById("playPauseBtn");
 const shuffleBtn = document.getElementById("shuffleBtn");
 const repeatBtn = document.getElementById("repeatBtn");
-const playPauseBtn = document.getElementById("playPauseBtn");
-const trackCount = document.getElementById("trackCount");
-const playlistTitle = document.getElementById("playlistTitle");
-const playlistSubtitle = document.getElementById("playlistSubtitle");
-const smallCover = document.getElementById("smallCover");
-const bigCover = document.getElementById("bigCover");
-const bigCoverTitle = document.getElementById("bigCoverTitle");
 
-// Mets true quand ton backend Python sera prêt.
-const API_MODE = false;
+const heroCover = document.getElementById("heroCover");
+const largeCover = document.getElementById("largeCover");
+const bottomCover = document.getElementById("bottomCover");
 
-// État global de l'interface
+let lastPlaylistRenderKey = "";
+
 let state = {
-  currentView: "local",
+  currentPlaylist: "Mes MP3",
   index: 0,
   playing: false,
   volume: 80,
   shuffle: false,
   repeat: false,
   position: 0,
-  playlist: [
+
+  tracks: [
     {
       title: "Dernière danse",
       artist: "Indila",
@@ -68,10 +62,11 @@ let state = {
       cover: ""
     }
   ],
+
   playlists: {
     "Mes MP3": [0, 1, 2, 3],
     "Favoris": [],
-    "Révisions": []
+    "Découvertes": []
   }
 };
 
@@ -82,11 +77,14 @@ function formatTime(seconds) {
   return `${min}:${String(rest).padStart(2, "0")}`;
 }
 
-function currentTrack() {
-  return state.playlist[state.index] || null;
+function getCurrentTrack() {
+  return state.tracks[state.index] || null;
 }
 
-// Fonction prévue pour connecter Python plus tard
+function getPlaylistIndexes() {
+  return state.playlists[state.currentPlaylist] || [];
+}
+
 async function apiCall(url, method = "GET", data = null) {
   const options = {
     method,
@@ -108,16 +106,30 @@ async function apiCall(url, method = "GET", data = null) {
 }
 
 function setCover(element, track) {
+  const coverKey = track && track.cover ? track.cover : "default";
+
+  if (element.dataset.coverKey === coverKey) {
+    return;
+  }
+
+  element.dataset.coverKey = coverKey;
+
   if (!track || !track.cover) {
     element.innerHTML = "♪";
     return;
   }
 
-  element.innerHTML = `<img src="${track.cover}" alt="Jaquette de ${track.title}">`;
+  element.innerHTML = `
+    <img
+      src="${track.cover}"
+      alt="Jaquette de ${track.title}"
+      loading="lazy"
+    >
+  `;
 }
 
-function updateUI() {
-  const track = currentTrack();
+function updateUI(forcePlaylistRender = false) {
+  const track = getCurrentTrack();
 
   trackName.textContent = track ? track.title : "Aucune piste";
   trackInfo.textContent = track
@@ -126,7 +138,12 @@ function updateUI() {
 
   currentTime.textContent = formatTime(state.position);
   durationTime.textContent = formatTime(track ? track.duration : 0);
-  progressBar.value = track && track.duration ? (state.position / track.duration) * 100 : 0;
+
+  progressBar.value =
+    track && track.duration
+      ? (state.position / track.duration) * 100
+      : 0;
+
   volumeSlider.value = state.volume;
   volumeValue.textContent = state.volume;
   playPauseBtn.textContent = state.playing ? "⏸" : "▶";
@@ -134,84 +151,126 @@ function updateUI() {
   shuffleBtn.classList.toggle("active", state.shuffle);
   repeatBtn.classList.toggle("active", state.repeat);
 
-  setCover(smallCover, track);
-  setCover(bigCover, track);
-  bigCoverTitle.textContent = track ? track.title : "Aucune piste";
+  setCover(heroCover, track);
+  setCover(largeCover, track);
+  setCover(bottomCover, track);
 
-  renderPlaylist();
   renderPlaylistMenu();
+  renderPlaylist(forcePlaylistRender);
   renderStatus();
 }
 
-function getDisplayedIndexes() {
-  if (state.currentView === "local") {
-    return state.playlist.map((_, index) => index);
-  }
+function renderPlaylistMenu() {
+  playlistMenu.innerHTML = "";
 
-  return state.playlists[state.currentView] || [];
+  Object.keys(state.playlists).forEach(name => {
+    const card = document.createElement("div");
+
+    card.className =
+      `playlist-card ${state.currentPlaylist === name ? "active-card" : ""}`;
+
+    const emoji =
+      name === "Mes MP3"
+        ? "🎧"
+        : name === "Favoris"
+          ? "💚"
+          : "✨";
+
+    const count = state.playlists[name].length;
+
+    card.innerHTML = `
+      <span>${emoji}</span>
+      <div>
+        <strong>${name}</strong>
+        <small>${count} titre${count > 1 ? "s" : ""}</small>
+      </div>
+    `;
+
+    card.addEventListener("click", () => {
+      state.currentPlaylist = name;
+      updateUI(true);
+    });
+
+    playlistMenu.appendChild(card);
+  });
 }
 
-function renderPlaylist() {
-  playlistContainer.innerHTML = "";
+function renderPlaylist(force = false) {
+  playlistTitle.textContent = state.currentPlaylist;
 
-  const filter = searchInput.value.toLowerCase().trim();
-  const displayedIndexes = getDisplayedIndexes();
+  const filter = searchInput.value.trim().toLowerCase();
 
-  const filteredIndexes = displayedIndexes.filter(index => {
-    const track = state.playlist[index];
+  const indexes = getPlaylistIndexes().filter(index => {
+    const track = state.tracks[index];
     if (!track) return false;
+
     return (
       track.title.toLowerCase().includes(filter) ||
       track.artist.toLowerCase().includes(filter)
     );
   });
 
-  playlistTitle.textContent =
-    state.currentView === "local" ? "Playlist locale" : `Playlist : ${state.currentView}`;
+  trackCount.textContent =
+    `${indexes.length} titre${indexes.length > 1 ? "s" : ""}`;
 
-  playlistSubtitle.textContent =
-    state.currentView === "local"
-      ? "Clique sur une musique pour la lancer."
-      : "Cette playlist a été créée dans l’interface.";
+  const renderKey =
+    `${state.currentPlaylist}|${filter}|${indexes.join(",")}|${state.index}`;
 
-  trackCount.textContent = `${filteredIndexes.length} titre${filteredIndexes.length > 1 ? "s" : ""}`;
+  if (!force && renderKey === lastPlaylistRenderKey) {
+    return;
+  }
 
-  if (filteredIndexes.length === 0) {
+  lastPlaylistRenderKey = renderKey;
+  playlistContainer.innerHTML = "";
+
+  if (indexes.length === 0) {
     playlistContainer.innerHTML = `
       <div class="track-row">
         <div class="track-number">–</div>
         <div class="track-cover">♪</div>
         <div>
           <div class="track-title">Aucune musique</div>
-          <div class="track-subtitle">Charge des MP3 ou ajoute un titre à cette playlist.</div>
+          <div class="track-subtitle">
+            Ajoute des MP3 ou crée une playlist.
+          </div>
         </div>
       </div>
     `;
     return;
   }
 
-  filteredIndexes.forEach((trackIndex, rowIndex) => {
-    const track = state.playlist[trackIndex];
+  indexes.forEach((trackIndex, rowIndex) => {
+    const track = state.tracks[trackIndex];
+
     const row = document.createElement("div");
-    row.className = `track-row ${trackIndex === state.index ? "active" : ""}`;
+
+    row.className =
+      `track-row ${trackIndex === state.index ? "active" : ""}`;
 
     row.innerHTML = `
       <div class="track-number">${rowIndex + 1}</div>
-      <div class="track-cover">${track.cover ? `<img src="${track.cover}" alt="">` : "♪"}</div>
+
+      <div class="track-cover">
+        ${track.cover ? `<img src="${track.cover}" alt="">` : "♪"}
+      </div>
+
       <div>
         <div class="track-title">${track.title}</div>
         <div class="track-subtitle">${track.artist}</div>
       </div>
-      <div class="track-duration">${formatTime(track.duration)}</div>
-      <div class="row-menu">
-        <button title="Ajouter à une playlist">＋</button>
+
+      <div class="track-duration">
+        ${formatTime(track.duration)}
       </div>
+
+      <button class="add-track-btn" title="Ajouter à une playlist">＋</button>
     `;
 
-    row.addEventListener("click", () => playTrack(trackIndex));
+    row.addEventListener("click", () => {
+      playTrack(trackIndex);
+    });
 
-    // Le bouton + ajoute le titre à une playlist, sans déclencher la lecture.
-    row.querySelector(".row-menu button").addEventListener("click", (event) => {
+    row.querySelector(".add-track-btn").addEventListener("click", event => {
       event.stopPropagation();
       addTrackToPlaylist(trackIndex);
     });
@@ -220,52 +279,26 @@ function renderPlaylist() {
   });
 }
 
-function renderPlaylistMenu() {
-  playlistMenu.innerHTML = "";
-
-  const allCard = document.createElement("div");
-  allCard.className = `playlist-card ${state.currentView === "local" ? "active" : ""}`;
-  allCard.innerHTML = `<strong>Mes MP3</strong><small>${state.playlist.length} titres locaux</small>`;
-  allCard.addEventListener("click", () => {
-    state.currentView = "local";
-    updateUI();
-  });
-  playlistMenu.appendChild(allCard);
-
-  Object.keys(state.playlists).forEach(name => {
-    if (name === "Mes MP3") return;
-
-    const card = document.createElement("div");
-    card.className = `playlist-card ${state.currentView === name ? "active" : ""}`;
-    const count = state.playlists[name].length;
-    card.innerHTML = `<strong>${name}</strong><small>${count} titre${count > 1 ? "s" : ""}</small>`;
-    card.addEventListener("click", () => {
-      state.currentView = name;
-      updateUI();
-    });
-
-    playlistMenu.appendChild(card);
-  });
-}
-
 function renderStatus() {
-  const track = currentTrack();
+  const track = getCurrentTrack();
+
   statusBox.innerHTML = `
     <strong>Piste :</strong> ${track ? track.title : "Aucune"}<br>
-    <strong>Artiste :</strong> ${track ? track.artist : "-"}<br>
-    <strong>Index :</strong> ${state.index + 1}/${state.playlist.length}<br>
+    <strong>Index :</strong> ${state.index + 1}/${state.tracks.length}<br>
     <strong>Lecture :</strong> ${state.playing ? "Oui" : "Non"}<br>
     <strong>Volume :</strong> ${state.volume}/100<br>
     <strong>Shuffle :</strong> ${state.shuffle ? "ON" : "OFF"}<br>
     <strong>Repeat :</strong> ${state.repeat ? "ON" : "OFF"}<br>
-    <strong>Position :</strong> ${formatTime(state.position)} / ${formatTime(track ? track.duration : 0)}
+    <strong>Position :</strong> ${formatTime(state.position)}
   `;
 }
 
 function createPlaylist() {
-  const name = prompt("Nom de la nouvelle playlist :");
+  const name = prompt("Nom de la playlist :");
 
-  if (!name || !name.trim()) return;
+  if (!name || !name.trim()) {
+    return;
+  }
 
   const cleanName = name.trim();
 
@@ -275,15 +308,14 @@ function createPlaylist() {
   }
 
   state.playlists[cleanName] = [];
-  state.currentView = cleanName;
-  updateUI();
-
-  // Plus tard avec Python :
-  // apiCall('/api/playlists', 'POST', { name: cleanName });
+  state.currentPlaylist = cleanName;
+  updateUI(true);
 }
 
 function addTrackToPlaylist(trackIndex) {
-  const names = Object.keys(state.playlists).filter(name => name !== "Mes MP3");
+  const names = Object.keys(state.playlists).filter(
+    name => name !== "Mes MP3"
+  );
 
   if (names.length === 0) {
     alert("Crée d'abord une playlist.");
@@ -291,11 +323,15 @@ function addTrackToPlaylist(trackIndex) {
     return;
   }
 
-  const choice = prompt(`Ajouter dans quelle playlist ?\n\n${names.join("\n")}`);
+  const selected = prompt(
+    `Ajouter dans quelle playlist ?\n\n${names.join("\n")}`
+  );
 
-  if (!choice || !choice.trim()) return;
+  if (!selected || !selected.trim()) {
+    return;
+  }
 
-  const playlistName = choice.trim();
+  const playlistName = selected.trim();
 
   if (!state.playlists[playlistName]) {
     alert("Cette playlist n'existe pas.");
@@ -306,144 +342,176 @@ function addTrackToPlaylist(trackIndex) {
     state.playlists[playlistName].push(trackIndex);
   }
 
-  updateUI();
-
-  // Plus tard avec Python :
-  // apiCall('/api/playlists/add', 'POST', { playlist: playlistName, index: trackIndex });
+  updateUI(true);
 }
 
-async function playTrack(index) {
-  if (API_MODE) {
-    try {
-      const result = await apiCall("/api/play", "POST", { index });
-      state = result.status;
-    } catch (error) {
-      alert(error.message);
-    }
-  } else {
-    state.index = index;
-    state.position = 0;
-    state.playing = true;
-  }
-
-  updateUI();
-}
-
-function playPause() {
-  if (API_MODE) {
-    // Plus tard : appeler /api/play ou /api/pause selon l'état.
+async function loadMusic() {
+  if (!API_MODE) {
+    alert(
+      "Mode maquette : plus tard, ce bouton appellera player.load_folder('./musiques')."
+    );
     return;
   }
 
+  try {
+    const result = await apiCall("/api/load", "POST");
+    state = result.status;
+    updateUI(true);
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function playTrack(index) {
+  if (API_MODE) {
+    apiCall("/api/play", "POST", { index });
+  }
+
+  state.index = index;
+  state.position = 0;
+  state.playing = true;
+  updateUI(true);
+}
+
+function playPause() {
   state.playing = !state.playing;
-  updateUI();
+  updateUI(false);
+
+  if (API_MODE) {
+    apiCall(state.playing ? "/api/play" : "/api/pause", "POST");
+  }
 }
 
 function stopTrack() {
   state.playing = false;
   state.position = 0;
-  updateUI();
+  updateUI(false);
+
+  if (API_MODE) {
+    apiCall("/api/stop", "POST");
+  }
 }
 
 function nextTrack() {
-  if (state.playlist.length === 0) return;
+  if (state.tracks.length === 0) return;
 
   if (state.shuffle) {
-    state.index = Math.floor(Math.random() * state.playlist.length);
+    state.index = Math.floor(Math.random() * state.tracks.length);
   } else {
-    state.index = (state.index + 1) % state.playlist.length;
+    state.index = (state.index + 1) % state.tracks.length;
   }
 
   state.position = 0;
   state.playing = true;
-  updateUI();
+  updateUI(true);
+
+  if (API_MODE) {
+    apiCall("/api/next", "POST");
+  }
 }
 
 function previousTrack() {
-  if (state.playlist.length === 0) return;
+  if (state.tracks.length === 0) return;
 
-  state.index = (state.index - 1 + state.playlist.length) % state.playlist.length;
+  state.index =
+    (state.index - 1 + state.tracks.length) % state.tracks.length;
+
   state.position = 0;
   state.playing = true;
-  updateUI();
-}
+  updateUI(true);
 
-// Simulation de chargement. Plus tard, cette fonction appellera /api/load.
-async function loadMusic() {
   if (API_MODE) {
-    try {
-      const result = await apiCall("/api/load", "POST");
-      state = result.status;
-      updateUI();
-    } catch (error) {
-      alert(error.message);
-    }
-  } else {
-    alert("Mode maquette : avec Python, ce bouton appellera player.load_folder('./musiques').");
+    apiCall("/api/prev", "POST");
   }
 }
 
-function searchYoutube() {
-  const query = document.getElementById("youtubeQuery").value.trim();
+mobileMenuBtn.addEventListener("click", () => {
+  sidebar.classList.toggle("open");
+});
 
-  if (!query) {
-    alert("Tape le nom d'une musique YouTube.");
-    return;
-  }
+document.getElementById("createPlaylistBtn").addEventListener("click", () => {
+  createPlaylist();
+});
 
-  alert(`Plus tard, cette recherche appellera client_yt_music.py avec : ${query}`);
-}
+document.getElementById("loadBtn").addEventListener("click", () => {
+  loadMusic();
+});
 
-// Boutons
-mobileBtn.addEventListener("click", () => sidebar.classList.toggle("open"));
-document.getElementById("newPlaylistBtn").addEventListener("click", createPlaylist);
-document.getElementById("createPlaylistHeroBtn").addEventListener("click", createPlaylist);
-document.getElementById("heroLoadBtn").addEventListener("click", loadMusic);
-document.getElementById("loadBtn").addEventListener("click", loadMusic);
-document.getElementById("refreshBtn").addEventListener("click", updateUI);
-document.getElementById("youtubeBtn").addEventListener("click", searchYoutube);
+document.getElementById("heroLoadBtn").addEventListener("click", () => {
+  loadMusic();
+});
 
-playPauseBtn.addEventListener("click", playPause);
-document.getElementById("stopBtn").addEventListener("click", stopTrack);
-document.getElementById("nextBtn").addEventListener("click", nextTrack);
-document.getElementById("prevBtn").addEventListener("click", previousTrack);
+document.getElementById("heroPlayBtn").addEventListener("click", () => {
+  const firstTrackIndex = getPlaylistIndexes()[0] || 0;
+  playTrack(firstTrackIndex);
+});
+
+document.getElementById("youtubeBtn").addEventListener("click", () => {
+  alert("Plus tard, ce bouton appellera client_yt_music.py.");
+});
+
+playPauseBtn.addEventListener("click", () => {
+  playPause();
+});
+
+document.getElementById("stopBtn").addEventListener("click", () => {
+  stopTrack();
+});
+
+document.getElementById("nextBtn").addEventListener("click", () => {
+  nextTrack();
+});
+
+document.getElementById("prevBtn").addEventListener("click", () => {
+  previousTrack();
+});
 
 shuffleBtn.addEventListener("click", () => {
   state.shuffle = !state.shuffle;
-  updateUI();
+  updateUI(false);
 });
 
 repeatBtn.addEventListener("click", () => {
   state.repeat = !state.repeat;
-  updateUI();
+  updateUI(false);
 });
 
 volumeSlider.addEventListener("input", event => {
   state.volume = Number(event.target.value);
-  updateUI();
+  updateUI(false);
 
-  // Plus tard avec Python :
-  // apiCall('/api/volume', 'POST', { volume: state.volume });
+  if (API_MODE) {
+    apiCall("/api/volume", "POST", { volume: state.volume });
+  }
 });
 
 progressBar.addEventListener("input", () => {
-  const track = currentTrack();
-  if (!track) return;
+  const track = getCurrentTrack();
 
-  state.position = (Number(progressBar.value) / 100) * track.duration;
-  updateUI();
+  if (!track) {
+    return;
+  }
 
-  // Plus tard avec Python :
-  // apiCall('/api/seek', 'POST', { seconds: state.position });
+  state.position =
+    (Number(progressBar.value) / 100) * track.duration;
+
+  updateUI(false);
+
+  if (API_MODE) {
+    apiCall("/api/seek", "POST", { seconds: state.position });
+  }
 });
 
-searchInput.addEventListener("input", renderPlaylist);
+searchInput.addEventListener("input", () => {
+  renderPlaylist(true);
+});
 
-// Avancement automatique en mode maquette.
-// Avec Python, il faudra plutôt récupérer player.get_status() toutes les secondes.
 setInterval(() => {
-  const track = currentTrack();
-  if (!track || !state.playing || API_MODE) return;
+  const track = getCurrentTrack();
+
+  if (!track || !state.playing || API_MODE) {
+    return;
+  }
 
   state.position += 1;
 
@@ -456,7 +524,7 @@ setInterval(() => {
     }
   }
 
-  updateUI();
+  updateUI(false);
 }, 1000);
 
-updateUI();
+updateUI(true);

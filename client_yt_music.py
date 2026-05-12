@@ -152,7 +152,6 @@ class YouTubeMusicClient:
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,
-            'playlistend': 50,
         }
 
         tracks = []

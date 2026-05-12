@@ -132,8 +132,7 @@ class YouTubeMusicClient:
                 )
                 audio_url = best_format['url']
 
-            self._play_url(audio_url)
-            return entry.get('title')
+            return entry.get('title'), audio_url
 
     def download_audio(self, query, output_path='%(title)s.%(ext)s'):
         """Télécharge l'audio de la première vidéo YouTube correspondant à la recherche."""
@@ -218,3 +217,82 @@ class YouTubeMusicClient:
         except Exception as e:
             print(f"[YouTube] Warning: Could not set volume: {e}")
         self._player.play()
+
+    def get_current_track_name(self) -> str:
+        """Retourne le titre de la piste actuellement sélectionnée."""
+        if not self._playlist:
+            return "Aucune piste"
+        return self._playlist[self._current_index]["title"]
+
+    def get_current_index(self) -> int:
+        return self._current_index
+
+    def get_playlist(self) -> list:
+        return [item["title"] for item in self._playlist]
+
+    def get_volume(self) -> int:
+        return self._volume
+
+    def set_volume(self, value: int):
+        self._volume = max(0, min(100, int(value)))
+        try:
+            self._player.audio_set_volume(self._volume)
+        except Exception:
+            pass
+
+    def pause(self):
+        """Met en pause ou reprend la lecture."""
+        self._player.pause()
+
+    def stop(self):
+        self._player.stop()
+
+    def next_track(self):
+        if not self._playlist:
+            return
+        if self._shuffle:
+            self._current_index = random.randrange(len(self._playlist))
+        else:
+            self._current_index = (self._current_index + 1) % len(self._playlist)
+        self._play_url(self._playlist[self._current_index]["url"])
+
+    def previous_track(self):
+        if not self._playlist:
+            return
+        if self._shuffle:
+            self._current_index = random.randrange(len(self._playlist))
+        else:
+            self._current_index = (self._current_index - 1) % len(self._playlist)
+        self._play_url(self._playlist[self._current_index]["url"])
+
+    def toggle_shuffle(self) -> bool:
+        self._shuffle = not self._shuffle
+        return self._shuffle
+
+    def toggle_repeat(self) -> bool:
+        self._repeat = not self._repeat
+        return self._repeat
+
+    def get_status(self) -> dict:
+        return {
+            "track": self.get_current_track_name(),
+            "index": self._current_index + 1,
+            "total": len(self._playlist),
+            "playing": self.is_playing(),
+            "volume": self.get_volume(),
+            "shuffle": self._shuffle,
+            "repeat": self._repeat,
+            "position": round(self.get_position(), 1),
+            "duration": round(self.get_duration(), 1),
+        }
+
+    def is_playing(self) -> bool:
+        return self._player.is_playing() == 1
+
+    def get_duration(self) -> float:
+        ms = self._player.get_length()
+        return ms / 1000 if ms > 0 else -1
+
+    def get_position(self) -> float:
+        ms = self._player.get_time()
+        return ms / 1000 if ms >= 0 else -1

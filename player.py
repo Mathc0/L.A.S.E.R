@@ -1,9 +1,7 @@
 import os
+import platform
 
 # --- Configuration du chemin vers les fichiers VLC locaux ---
-# Ces lignes permettent à Python de trouver les DLL de VLC
-# dans le sous-dossier "vlc_files" du projet, sans avoir besoin
-# que VLC soit installé sur le système.
 vlc_path = os.path.join(os.getcwd(), "vlc_files")
 os.environ['PATH'] += os.pathsep + vlc_path
 import vlc
@@ -40,13 +38,11 @@ class MusicPlayer:
                              de load_folder().
         """
         # --- Initialisation du moteur VLC ---
-        # Configure VLC to use PulseAudio and avoid PipeWire issues
-        vlc_args = [
-            '--no-video',  # No video output needed
-            '--aout=pulse',  # Use PulseAudio directly
-            '--audio-filter=',  # Disable audio filters that might cause issues
-        ]
+        vlc_args = ['--no-video', '--quiet', '--verbose=-1']
+        if platform.system() == 'Linux':
+            vlc_args.append('--aout=pulse')
         self._instance = vlc.Instance(vlc_args)
+        self._instance.log_unset()
         self._list_player = self._instance.media_list_player_new()
         self._media_list = self._instance.media_list_new()
         self._list_player.set_media_list(self._media_list)

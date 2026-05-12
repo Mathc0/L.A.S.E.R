@@ -1,6 +1,7 @@
 import time
 import client_yt_music
 from player import MusicPlayer
+import os
 # ==============================================================================
 # MAIN.PY — Point d'entrée du projet L.A.S.E.R
 # Intègre le MusicPlayer (fichiers MP3 locaux) et le client YouTube Music.

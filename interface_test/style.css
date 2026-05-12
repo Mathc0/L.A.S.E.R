@@ -1,0 +1,79 @@
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #181c24;
+  color: #f5f5f5;
+  margin: 0;
+  padding: 0;
+}
+
+#sidebar {
+  background: #23283b;
+  color: #fff;
+  width: 220px;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  position: fixed;
+  left: 0;
+  top: 0;
+}
+
+#playlistContainer {
+  margin-left: 240px;
+  padding: 30px;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #2c3142;
+}
+
+.track-row.active {
+  background: #2c3142;
+}
+
+.track-number, .track-cover, .track-title, .track-subtitle, .track-duration {
+  margin-right: 20px;
+}
+
+.track-title {
+  font-weight: bold;
+}
+
+button {
+  background: #3a405a;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #5561a6;
+}
+
+input[type="range"], input[type="text"] {
+  background: #23283b;
+  color: #fff;
+  border: 1px solid #3a405a;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.playlist-card {
+  background: #23283b;
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.playlist-card.active, .playlist-card:hover {
+  background: #5561a6;
+}

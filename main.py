@@ -447,6 +447,50 @@ def menu_local(player: MusicPlayer):
     generic_player_menu(player, 'local')
 
 
+def menu_tagging():
+    """
+    Sous-menu pour lancer le tagger manuellement depuis le menu principal.
+    """
+    print("\n--- Tagging MP3 ---")
+    print("  1. Tagger le dossier par défaut ('./musiques')")
+    print("  2. Sélectionner un dossier à tagger")
+    print("  3. Sélectionner des fichiers MP3 à tagger")
+    print("  4. Annuler")
+
+    choice = input("Votre choix : ").strip().lower()
+
+    if choice in ("1", "défaut"):
+        folder_path = MUSIC_FOLDER
+        recursive = True
+    elif choice in ("2", "dossier"):
+        folder_path = browse_music_folder()
+        if not folder_path:
+            print("Aucun dossier sélectionné. Retour au menu principal.")
+            return
+        recursive = True
+    elif choice in ("3", "fichiers"):
+        file_paths = browse_music_files()
+        if not file_paths:
+            print("Aucun fichier sélectionné. Retour au menu principal.")
+            return
+        print(f"\n🏷️  Tagging des métadonnées MP3 ({len(file_paths)} fichier(s))...\n")
+        success_count = 0
+        for file_path in sorted(file_paths):
+            print(f"🔍 Traitement de : {os.path.basename(file_path)}")
+            try:
+                if tag_mp3_file(file_path):
+                    success_count += 1
+            except Exception as e:
+                print(f"   ❌ Erreur inattendue : {e}")
+        print(f"\n✅ Tagging terminé : {success_count}/{len(file_paths)} fichier(s) mis à jour.\n")
+        return
+    else:
+        print("Retour au menu principal.")
+        return
+
+    auto_tag_music_folder(folder_path, recursive=recursive)
+
+
 def menu_youtube():
     """
     Sous-menu de recherche et lecture via YouTube Music.
@@ -474,7 +518,8 @@ def main():
         print("Que voulez-vous faire ?")
         print("  1. local    → Lire des MP3 depuis le dossier 'musiques/'")
         print("  2. youtube  → Rechercher une musique sur YouTube Music")
-        print("  3. quit     → Quitter\n")
+        print("  3. tag      → Tagger des MP3 avec MusicBrainz")
+        print("  4. quit     → Quitter\n")
 
         try:
             choice = input("Votre choix : ").strip().lower()
@@ -488,7 +533,10 @@ def main():
         elif choice in ("2", "youtube"):
             menu_youtube()
 
-        elif choice in ("3", "quit"):
+        elif choice in ("3", "tag"):
+            menu_tagging()
+
+        elif choice in ("4", "quit"):
             print("Merci d'avoir utilisé L.A.S.E.R. À bientôt !")
             break
 

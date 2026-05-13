@@ -2,6 +2,7 @@ import time
 import client_yt_music
 from player import MusicPlayer
 import os
+from mp3_tagger import tag_mp3_file
 # ==============================================================================
 # MAIN.PY — Point d'entrée du projet L.A.S.E.R
 # Intègre le MusicPlayer (fichiers MP3 locaux) et le client YouTube Music.
@@ -9,6 +10,41 @@ import os
 
 # Dossier contenant les fichiers MP3 locaux
 MUSIC_FOLDER = "./musiques"
+
+def auto_tag_music_folder():
+    """
+    Analyse et met à jour les métadonnées des fichiers MP3 via Discogs.
+    Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+    """
+    if not os.path.isdir(MUSIC_FOLDER):
+        print(f"⚠️  Dossier '{MUSIC_FOLDER}' non trouvé. Ignoré le tagging.")
+        return
+    
+    mp3_files = [f for f in os.listdir(MUSIC_FOLDER) if f.lower().endswith(".mp3")]
+    
+    if not mp3_files:
+        print(f"ℹ️  Aucun fichier MP3 trouvé dans '{MUSIC_FOLDER}'.")
+        return
+    
+    print(f"\n🏷️  Tagging des métadonnées MP3 ({len(mp3_files)} fichier(s))...\n")
+    success_count = 0
+    
+    for filename in sorted(mp3_files):
+        file_path = os.path.join(MUSIC_FOLDER, filename)
+        print(f"🔍 Traitement de : {filename}")
+        try:
+            if tag_mp3_file(file_path):
+                success_count += 1
+        except Exception as e:
+            print(f"   ❌ Erreur inattendue : {e}")
+    
+    print(f"\n✅ Tagging terminé : {success_count}/{len(mp3_files)} fichier(s) mis à jour.\n")
+
+# Tagging automatique au démarrage (sans bloquer)
+try:
+    auto_tag_music_folder()
+except Exception as e:
+    print(f"⚠️  Erreur lors du tagging automatique : {e}\n")
 
 
 def show_music_progress(player: MusicPlayer):

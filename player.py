@@ -68,12 +68,13 @@ class MusicPlayer:
     # CHARGEMENT DE LA PLAYLIST
     # ==========================================================================
 
-    def load_folder(self, folder_path: str) -> int:
+    def load_folder(self, folder_path: str, recursive: bool = False) -> int:
         """
         Charge tous les fichiers MP3 d'un dossier dans la playlist.
         Efface l'ancienne playlist avant de charger la nouvelle.
 
         :param folder_path: chemin du dossier à scanner.
+        :param recursive: si True, cherche dans les sous-dossiers aussi.
         :return: nombre de fichiers MP3 trouvés et chargés.
         """
         if not os.path.isdir(folder_path):
@@ -83,14 +84,27 @@ class MusicPlayer:
         self._playlist = []
         self._media_list = self._instance.media_list_new()
 
-        # Parcourt le dossier et ajoute chaque .mp3 à la playlist
-        for filename in sorted(os.listdir(folder_path)):
-            if filename.lower().endswith(".mp3"):
-                full_path = os.path.join(folder_path, filename)
-                self._playlist.append(full_path)
-                # Crée un objet Media VLC et l'ajoute à la liste VLC
-                media = self._instance.media_new(full_path)
-                self._media_list.add_media(media)
+        # Collecte tous les fichiers MP3 (récursivement si demandé)
+        mp3_files = []
+        if recursive:
+            # Cherche dans tous les sous-dossiers
+            for root, dirs, files in os.walk(folder_path):
+                for filename in sorted(files):
+                    if filename.lower().endswith(".mp3"):
+                        full_path = os.path.join(root, filename)
+                        mp3_files.append(full_path)
+        else:
+            # Cherche seulement dans le dossier principal
+            for filename in sorted(os.listdir(folder_path)):
+                if filename.lower().endswith(".mp3"):
+                    full_path = os.path.join(folder_path, filename)
+                    mp3_files.append(full_path)
+
+        # Ajoute tous les fichiers à la playlist et à VLC
+        for full_path in mp3_files:
+            self._playlist.append(full_path)
+            media = self._instance.media_new(full_path)
+            self._media_list.add_media(media)
 
         # Associe la nouvelle liste VLC au player
         self._list_player.set_media_list(self._media_list)
@@ -268,16 +282,23 @@ class MusicPlayer:
     # INFORMATIONS SUR LA PISTE EN COURS
     # ==========================================================================
 
-    def get_current_track_name(self) -> str:
+    def get_current_track_name(self, show_path: bool = False) -> str:
         """
         Retourne le nom du fichier de la piste en cours (sans l'extension).
 
+        :param show_path: si True, affiche le chemin relatif complet avec sous-dossiers.
         :return: nom de la piste ou "Aucune piste" si la playlist est vide.
         """
         if not self._playlist:
             return "Aucune piste"
-        filename = os.path.basename(self._playlist[self._current_index])
-        return os.path.splitext(filename)[0]   # supprime l'extension .mp3
+        full_path = self._playlist[self._current_index]
+        filename = os.path.basename(full_path)
+        name = os.path.splitext(filename)[0]
+        
+        if show_path:
+            # Affiche le chemin relatif avec les sous-dossiers
+            return full_path.replace(os.sep, ' / ')
+        return name
 
     def get_current_index(self) -> int:
         """
@@ -285,12 +306,15 @@ class MusicPlayer:
         """
         return self._current_index
 
-    def get_playlist(self) -> list:
+    def get_playlist(self, show_path: bool = False) -> list:
         """
         Retourne la liste de tous les noms de pistes (sans extension) de la playlist.
 
+        :param show_path: si True, affiche le chemin complet de chaque fichier.
         :return: liste de chaînes de caractères.
         """
+        if show_path:
+            return self._playlist
         return [
             os.path.splitext(os.path.basename(p))[0]
             for p in self._playlist

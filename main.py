@@ -3,13 +3,49 @@ import client_yt_music
 from player import MusicPlayer
 import os
 from mp3_tagger import tag_mp3_file
+from tkinter import Tk, filedialog
 # ==============================================================================
 # MAIN.PY — Point d'entrée du projet L.A.S.E.R
 # Intègre le MusicPlayer (fichiers MP3 locaux) et le client YouTube Music.
 # ==============================================================================
 
-# Dossier contenant les fichiers MP3 locaux
+# Dossier contenant les fichiers MP3 locaux (par défaut)
 MUSIC_FOLDER = "./musiques"
+
+def browse_music_folder():
+    """
+    Ouvre un explorateur de fichiers pour sélectionner un dossier de musiques.
+    Retourne le chemin du dossier sélectionné ou None si annulation.
+    """
+    root = Tk()
+    root.withdraw()  # Masque la fenêtre principale de Tkinter
+    root.attributes('-topmost', True)  # Place la fenêtre de dialogue au premier plan
+    
+    folder_path = filedialog.askdirectory(
+        title="Sélectionner un dossier de musiques",
+        initialdir=os.path.expanduser("~")
+    )
+    root.destroy()
+    
+    return folder_path if folder_path else None
+
+def browse_music_files():
+    """
+    Ouvre un explorateur de fichiers pour sélectionner des fichiers MP3 individuels.
+    Retourne une liste de chemins de fichiers ou une liste vide si annulation.
+    """
+    root = Tk()
+    root.withdraw()  # Masque la fenêtre principale de Tkinter
+    root.attributes('-topmost', True)
+    
+    file_paths = filedialog.askopenfilenames(
+        title="Sélectionner des fichiers MP3",
+        initialdir=os.path.expanduser("~"),
+        filetypes=[("Fichiers MP3", "*.mp3"), ("Tous les fichiers", "*.*")]
+    )
+    root.destroy()
+    
+    return list(file_paths) if file_paths else []
 
 def auto_tag_music_folder():
     """
@@ -99,16 +135,29 @@ def show_playlist(player: MusicPlayer):
     """
     Affiche toutes les pistes chargées dans la playlist locale.
     Indique la piste en cours avec une flèche.
+    Affiche le chemin complet si des sous-dossiers sont présents.
     """
     playlist = player.get_playlist()
+    playlist_paths = player.get_playlist(show_path=True)
     if not playlist:
         print("⚠️  Aucune piste dans la playlist.")
         return
 
+    # Détermine s'il y a des sous-dossiers
+    has_subdirs = any(os.path.dirname(p) != os.path.dirname(playlist_paths[0]) for p in playlist_paths)
+
     print(f"\n📋 Playlist ({len(playlist)} piste(s)) :")
     for i, name in enumerate(playlist):
         marker = "▶ " if i == player.get_current_index() else "  "
-        print(f"  {marker}{i + 1}. {name}")
+        if has_subdirs and i < len(playlist_paths):
+            # Affiche le chemin relatif avec les sous-dossiers
+            display_name = os.path.basename(playlist_paths[i])
+            parent_dir = os.path.dirname(playlist_paths[i])
+            if parent_dir and parent_dir != ".":
+                display_name = f"{os.path.basename(parent_dir)} / {display_name}"
+            print(f"  {marker}{i + 1}. {display_name}")
+        else:
+            print(f"  {marker}{i + 1}. {name}")
     print()
 
 
@@ -279,24 +328,81 @@ Commandes disponibles :
 def menu_local(player: MusicPlayer):
     """
     Sous-menu de contrôle du player MP3 local.
+    Offre le choix entre parcourir un dossier, des fichiers individuels, ou le dossier par défaut.
     Permet de contrôler la lecture, le volume, la navigation et les modes.
     """
     print("\n--- Mode MP3 Local ---")
-    print("Dossier :", MUSIC_FOLDER)
-
-    # Chargement de la playlist depuis le dossier
+    print("Comment voulez-vous charger vos musiques ?")
+    print("  1. Parcourir un dossier")
+    print("  2. Sélectionner des fichiers MP3")
+    print("  3. Utiliser le dossier par défaut (./musiques)")
+    print("  4. Annuler")
+    
+    choice = input("\nVotre choix : ").strip().lower()
+    
+    folder_to_load = None
+    files_to_load = []
+    recursive = False
+    
+    if choice in ("1", "parcourir"):
+        print("\n📂 Ouverture de l'explorateur de fichiers...")
+        folder_to_load = browse_music_folder()
+        if not folder_to_load:
+            print("Aucun dossier sélectionné. Retour au menu principal.")
+            return
+        print(f"Dossier sélectionné : {folder_to_load}")
+        recursive = True  # Par défaut, inclure les sous-dossiers
+        
+    elif choice in ("2", "fichiers"):
+        print("\n📂 Ouverture de l'explorateur de fichiers...")
+        files_to_load = browse_music_files()
+        if not files_to_load:
+            print("Aucun fichier sélectionné. Retour au menu principal.")
+            return
+        print(f"{len(files_to_load)} fichier(s) sélectionné(s).")
+        
+    elif choice in ("3", "défaut"):
+        folder_to_load = MUSIC_FOLDER
+        recursive = True
+        print(f"Dossier par défaut : {folder_to_load}")
+        
+    else:
+        print("Retour au menu principal.")
+        return
+    
+    # Chargement de la playlist
     try:
-        nb = player.load_folder(MUSIC_FOLDER)
+        if folder_to_load:
+            nb = player.load_folder(folder_to_load, recursive=recursive)
+        else:
+            # Charger les fichiers individuels manuellement
+            player._playlist = []
+            player._media_list = player._instance.media_list_new()
+            for file_path in files_to_load:
+                player._playlist.append(file_path)
+                media = player._instance.media_new(file_path)
+                player._media_list.add_media(media)
+            player._list_player.set_media_list(player._media_list)
+            player._player = player._list_player.get_media_player()
+            try:
+                player._player.audio_set_volume(player._volume)
+            except Exception as e:
+                print(f"[Player] Warning: Could not set initial volume: {e}")
+            player._current_index = 0
+            nb = len(files_to_load)
+        
         if nb == 0:
-            print(f"⚠️  Aucun fichier MP3 trouvé dans '{MUSIC_FOLDER}'.")
-            print("    Ajoutez des fichiers .mp3 dans ce dossier et réessayez.")
+            print(f"⚠️  Aucun fichier MP3 trouvé.")
             return
         print(f"✅  {nb} piste(s) chargée(s).\n")
+        
     except FileNotFoundError:
-        print(f"⚠️  Le dossier '{MUSIC_FOLDER}' n'existe pas.")
-        print("    Créez un dossier 'musiques/' à la racine du projet et ajoutez vos MP3.")
+        print(f"⚠️  Le dossier sélectionné n'existe pas.")
         return
-
+    except Exception as e:
+        print(f"⚠️  Erreur lors du chargement : {e}")
+        return
+    
     # Démarrage automatique de la première piste
     player.play()
     show_status(player)

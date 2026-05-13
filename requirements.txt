@@ -2,3 +2,5 @@ yt-dlp
 Pillow
 python-vlc
 static-ffmpeg
+eyed3
+discogs_client

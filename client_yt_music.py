@@ -12,6 +12,7 @@ import io
 import os
 import random
 import subprocess
+import urllib.parse
 
 import platform
 
@@ -80,7 +81,7 @@ class YouTubeMusicClient:
         :return: titre de la piste trouvée.
         """
         title, url = self._fetch_info(query)
-        self._playlist.append({"title": title, "url": url})
+        self._playlist.append({"title": title, "url": url, "video_url": None})
         self._current_index = len(self._playlist) - 1
         self._play_url(url)
         return title
@@ -94,8 +95,125 @@ class YouTubeMusicClient:
         :return: titre de la piste ajoutée.
         """
         title, url = self._fetch_info(query)
-        self._playlist.append({"title": title, "url": url})
+        self._playlist.append({"title": title, "url": url, "video_url": None})
         return title
+
+    def search_playlist_and_play(self, query: str) -> tuple:
+        """
+        Recherche une playlist YouTube, charge toutes ses pistes (lazy)
+        et démarre la lecture de la première.
+
+        :param query: terme de recherche de la playlist.
+        :return: (titre_playlist, nombre_de_pistes)
+        """
+        playlist_title, tracks = self._fetch_playlist_videos(query)
+
+        if not tracks:
+            raise ValueError("Aucune piste trouvée dans la playlist")
+
+        start_index = len(self._playlist)
+        for title, video_url in tracks:
+            self._playlist.append({"title": title, "url": None, "video_url": video_url})
+
+        self._current_index = start_index
+        self._play_current_track()
+        return playlist_title, len(tracks)
+
+    def _fetch_playlist_videos(self, query: str) -> tuple:
+        """
+        Recherche une playlist YouTube et retourne (titre_playlist, [(titre, video_url)]).
+        Utilise le filtre playlist de YouTube pour ne chercher que des playlists.
+        """
+        encoded_query = urllib.parse.quote_plus(query)
+        # sp=EgIQAw%3D%3D filtre les résultats pour n'afficher que les playlists
+        search_url = f"https://www.youtube.com/results?search_query={encoded_query}&sp=EgIQAw%3D%3D"
+
+        flat_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+            'playlistend': 3,
+        }
+
+        with YoutubeDL(flat_opts) as ydl:
+            search_results = ydl.extract_info(search_url, download=False)
+
+        if not search_results or not search_results.get('entries'):
+            raise ValueError("Aucune playlist trouvée pour cette recherche")
+
+        first_result = search_results['entries'][0]
+        playlist_url = first_result.get('url') or first_result.get('webpage_url', '')
+        playlist_id = first_result.get('id', '')
+        if playlist_id and not playlist_url.startswith('http'):
+            playlist_url = f"https://www.youtube.com/playlist?list={playlist_id}"
+        playlist_title = first_result.get('title', query)
+
+        tracks_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+        }
+
+        tracks = []
+        with YoutubeDL(tracks_opts) as ydl:
+            playlist_data = ydl.extract_info(playlist_url, download=False)
+
+        if not playlist_data:
+            raise ValueError("Impossible d'extraire les données de la playlist")
+
+        for entry in playlist_data.get('entries') or []:
+            if not entry:
+                continue
+            title = entry.get('title', 'Titre inconnu')
+            video_id = entry.get('id', '')
+            video_url = entry.get('url') or entry.get('webpage_url', '')
+            if video_id and not (video_url and video_url.startswith('http')):
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+            if video_url:
+                tracks.append((title, video_url))
+
+        if not tracks:
+            raise ValueError("La playlist est vide ou inaccessible")
+
+        return playlist_title, tracks
+
+    def _resolve_audio_url(self, video_url: str) -> str:
+        """Résout l'URL du flux audio à partir de l'URL d'une vidéo YouTube."""
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'quiet': True,
+            'no_warnings': True,
+        }
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+
+        if not info:
+            raise ValueError(f"Impossible d'extraire l'audio : {video_url}")
+
+        audio_url = info.get('url')
+        if not audio_url:
+            audio_formats = [
+                f for f in info.get('formats', [])
+                if f.get('acodec') != 'none' and f.get('url')
+            ]
+            if not audio_formats:
+                raise ValueError("Aucun format audio disponible")
+            best_format = max(
+                audio_formats,
+                key=lambda f: f.get('abr') or f.get('tbr') or f.get('quality') or 0
+            )
+            audio_url = best_format['url']
+
+        return audio_url
+
+    def _play_current_track(self):
+        """Joue la piste courante, en résolvant l'URL audio si nécessaire."""
+        track = self._playlist[self._current_index]
+        if not track.get('url'):
+            if not track.get('video_url'):
+                raise ValueError("Aucune URL disponible pour cette piste")
+            track['url'] = self._resolve_audio_url(track['video_url'])
+        self._play_url(track['url'])
 
     def _fetch_info(self, query: str) -> tuple:
         """
@@ -254,7 +372,7 @@ class YouTubeMusicClient:
             self._current_index = random.randrange(len(self._playlist))
         else:
             self._current_index = (self._current_index + 1) % len(self._playlist)
-        self._play_url(self._playlist[self._current_index]["url"])
+        self._play_current_track()
 
     def previous_track(self):
         if not self._playlist:
@@ -263,7 +381,7 @@ class YouTubeMusicClient:
             self._current_index = random.randrange(len(self._playlist))
         else:
             self._current_index = (self._current_index - 1) % len(self._playlist)
-        self._play_url(self._playlist[self._current_index]["url"])
+        self._play_current_track()
 
     def toggle_shuffle(self) -> bool:
         self._shuffle = not self._shuffle

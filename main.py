@@ -98,20 +98,21 @@ Commandes disponibles :
 """
     youtube_help = """
 Commandes disponibles :
-  search [query]→ rechercher et lire une musique (ex: search daft punk)
-  add [query]   → ajouter une musique à la playlist
-  play / pause  → reprendre ou mettre en pause
-  stop          → arrêter la lecture
-  next          → piste suivante
-  prev          → piste précédente
-  volume [0-100]→ régler le volume  (ex: volume 70)
-  shuffle       → activer/désactiver le mode aléatoire
-  repeat        → activer/désactiver la répétition
-  playlist      → afficher toutes les pistes
-  status        → afficher l'état du player
-  progress      → afficher la barre de progression
-  help          → afficher cette aide
-  back          → retourner au menu principal
+  search music [query]    → rechercher et lire une musique  (ex: search music daft punk)
+  search playlist [query] → rechercher et lire une playlist (ex: search playlist daft punk)
+  add [query]             → ajouter une musique à la playlist
+  play / pause            → reprendre ou mettre en pause
+  stop                    → arrêter la lecture
+  next                    → piste suivante
+  prev                    → piste précédente
+  volume [0-100]          → régler le volume  (ex: volume 70)
+  shuffle                 → activer/désactiver le mode aléatoire
+  repeat                  → activer/désactiver la répétition
+  playlist                → afficher toutes les pistes
+  status                  → afficher l'état du player
+  progress                → afficher la barre de progression
+  help                    → afficher cette aide
+  back                    → retourner au menu principal
 """
     HELP = youtube_help if player_type == 'youtube' else local_help
     print(HELP)
@@ -132,17 +133,41 @@ Commandes disponibles :
         # Commandes spécifiques à YouTube
         if player_type == 'youtube':
             if cmd == "search":
-                query = " ".join(cmd_parts[1:])
-                if not query:
-                    print("Usage : search [nom de la musique]")
+                if len(cmd_parts) < 2:
+                    print("Usage : search music [query] | search playlist [query]")
                     continue
-                try:
-                    print(f"🔎 Recherche de '{query}'...")
-                    title = player.search_and_play(query)
-                    print(f"🎵 Lecture de : {title}")
-                    show_status(player)
-                except Exception as e:
-                    print(f"⚠️ Erreur de recherche : {e}")
+
+                subcommand = cmd_parts[1]
+
+                if subcommand == "music":
+                    query = " ".join(cmd_parts[2:])
+                    if not query:
+                        print("Usage : search music [nom de la musique]")
+                        continue
+                    try:
+                        print(f"🔎 Recherche de '{query}'...")
+                        title = player.search_and_play(query)
+                        print(f"🎵 Lecture de : {title}")
+                        show_status(player)
+                    except Exception as e:
+                        print(f"⚠️ Erreur de recherche : {e}")
+
+                elif subcommand == "playlist":
+                    query = " ".join(cmd_parts[2:])
+                    if not query:
+                        print("Usage : search playlist [nom de la playlist]")
+                        continue
+                    try:
+                        print(f"🔎 Recherche de la playlist '{query}'...")
+                        playlist_title, nb_tracks = player.search_playlist_and_play(query)
+                        print(f"🎵 Lecture de la playlist : {playlist_title} ({nb_tracks} pistes)")
+                        show_status(player)
+                    except Exception as e:
+                        print(f"⚠️ Erreur de recherche : {e}")
+
+                else:
+                    print("Usage : search music [query] | search playlist [query]")
+
                 continue
 
             elif cmd == "add":

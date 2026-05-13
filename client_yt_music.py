@@ -131,9 +131,7 @@ class YouTubeMusicClient:
                     key=lambda f: f.get('abr') or f.get('tbr') or f.get('quality') or 0
                 )
                 audio_url = best_format['url']
-
-            self._play_url(audio_url)
-            return entry.get('title')
+            return entry.get('title'), audio_url
 
     def download_audio(self, query, output_path='%(title)s.%(ext)s'):
         """Télécharge l'audio de la première vidéo YouTube correspondant à la recherche."""

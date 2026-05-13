@@ -1,4 +1,4 @@
-const API_MODE = false;
+const API_MODE = true;
 
 const sidebar = document.getElementById("sidebar");
 const mobileMenuBtn = document.getElementById("mobileMenuBtn");
@@ -14,8 +14,6 @@ const trackInfo = document.getElementById("trackInfo");
 const currentTime = document.getElementById("currentTime");
 const durationTime = document.getElementById("durationTime");
 const progressBar = document.getElementById("progressBar");
-const volumeSlider = document.getElementById("volumeSlider");
-const volumeValue = document.getElementById("volumeValue");
 
 const playPauseBtn = document.getElementById("playPauseBtn");
 const shuffleBtn = document.getElementById("shuffleBtn");
@@ -26,9 +24,10 @@ const largeCover = document.getElementById("largeCover");
 const bottomCover = document.getElementById("bottomCover");
 
 let lastPlaylistRenderKey = "";
+let isSearchingYoutube = false;
 
 let state = {
-  currentPlaylist: "Mes MP3",
+  currentPlaylist: "Découvertes",
   index: 0,
   playing: false,
   volume: 80,
@@ -36,35 +35,9 @@ let state = {
   repeat: false,
   position: 0,
 
-  tracks: [
-    {
-      title: "Dernière danse",
-      artist: "Indila",
-      duration: 212,
-      cover: "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/ea/4f/30/ea4f3085-5fd7-f2ea-cd95-df97fd1274e5/13UAAIM12708.rgb.jpg/300x300bb.jpg"
-    },
-    {
-      title: "Formidable",
-      artist: "Stromae",
-      duration: 205,
-      cover: "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/88/0e/1c/880e1c50-cfea-739c-aa87-98a41a2fd4e5/13UMGIM73047.rgb.jpg/300x300bb.jpg"
-    },
-    {
-      title: "Voilà",
-      artist: "Barbara Pravi",
-      duration: 196,
-      cover: "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/c9/70/7e/c9707e9c-3d4d-9c6f-4677-c73680d52524/21UMGIM09944.rgb.jpg/300x300bb.jpg"
-    },
-    {
-      title: "Je te promets",
-      artist: "Johnny Hallyday",
-      duration: 245,
-      cover: ""
-    }
-  ],
+  tracks: [],
 
   playlists: {
-    "Mes MP3": [0, 1, 2, 3],
     "Favoris": [],
     "Découvertes": []
   }
@@ -128,6 +101,108 @@ function setCover(element, track) {
   `;
 }
 
+function addOrUpdateYoutubeTrack(track, backendIndex) {
+  const trackKey = track.webpage_url || `${track.title}-${track.artist}`;
+
+  const existingIndex = state.tracks.findIndex(item => {
+    const itemKey = item.webpage_url || `${item.title}-${item.artist}`;
+    return item.source === "youtube" && itemKey === trackKey;
+  });
+
+  if (existingIndex !== -1) {
+    state.tracks[existingIndex] = {
+      ...state.tracks[existingIndex],
+      title: track.title || "Titre inconnu",
+      artist: track.artist || "YouTube",
+      duration: track.duration || state.tracks[existingIndex].duration || 0,
+      cover: track.cover || "",
+      webpage_url: track.webpage_url || "",
+      source: "youtube",
+      backendIndex
+    };
+
+    if (!state.playlists["Découvertes"].includes(existingIndex)) {
+      state.playlists["Découvertes"].push(existingIndex);
+    }
+
+    return existingIndex;
+  }
+
+  const newTrack = {
+    title: track.title || "Titre inconnu",
+    artist: track.artist || "YouTube",
+    duration: track.duration || 0,
+    cover: track.cover || "",
+    webpage_url: track.webpage_url || "",
+    source: "youtube",
+    backendIndex
+  };
+
+  state.tracks.push(newTrack);
+  const newIndex = state.tracks.length - 1;
+
+  if (!state.playlists["Découvertes"].includes(newIndex)) {
+    state.playlists["Découvertes"].push(newIndex);
+  }
+
+  return newIndex;
+}
+
+function syncStatus(status) {
+  if (!status) return;
+
+  state.playing = Boolean(status.playing);
+  state.position = Number(status.position || 0);
+  state.volume = Number(status.volume || state.volume);
+  state.shuffle = Boolean(status.shuffle);
+  state.repeat = Boolean(status.repeat);
+
+  if (Array.isArray(status.playlist)) {
+    status.playlist.forEach((track, index) => {
+      addOrUpdateYoutubeTrack(track, index);
+    });
+  }
+
+  const backendIndex = Number(status.index || 1) - 1;
+
+  const currentIndex = state.tracks.findIndex(
+    track => track.source === "youtube" && track.backendIndex === backendIndex
+  );
+
+  if (currentIndex !== -1) {
+    state.index = currentIndex;
+
+    if (status.duration !== undefined) {
+      state.tracks[currentIndex].duration = Number(status.duration || 0);
+    }
+
+    if (status.cover) {
+      state.tracks[currentIndex].cover = status.cover;
+    }
+
+    if (status.track) {
+      state.tracks[currentIndex].title = status.track;
+    }
+
+    if (status.artist) {
+      state.tracks[currentIndex].artist = status.artist;
+    }
+  }
+}
+
+async function refreshStatusFromPython() {
+  try {
+    const result = await apiCall("/api/status");
+
+    if (result.status) {
+      syncStatus(result.status);
+      updateUI(false);
+    }
+  } catch (error) {
+    console.log("Status non disponible :", error.message);
+  }
+}
+
 function updateUI(forcePlaylistRender = false) {
   const track = getCurrentTrack();
 
@@ -144,8 +219,6 @@ function updateUI(forcePlaylistRender = false) {
       ? (state.position / track.duration) * 100
       : 0;
 
-  volumeSlider.value = state.volume;
-  volumeValue.textContent = state.volume;
   playPauseBtn.textContent = state.playing ? "⏸" : "▶";
 
   shuffleBtn.classList.toggle("active", state.shuffle);
@@ -169,13 +242,7 @@ function renderPlaylistMenu() {
     card.className =
       `playlist-card ${state.currentPlaylist === name ? "active-card" : ""}`;
 
-    const emoji =
-      name === "Mes MP3"
-        ? "🎧"
-        : name === "Favoris"
-          ? "💚"
-          : "✨";
-
+    const emoji = name === "Favoris" ? "🩵" : "✨";
     const count = state.playlists[name].length;
 
     card.innerHTML = `
@@ -214,7 +281,7 @@ function renderPlaylist(force = false) {
     `${indexes.length} titre${indexes.length > 1 ? "s" : ""}`;
 
   const renderKey =
-    `${state.currentPlaylist}|${filter}|${indexes.join(",")}|${state.index}`;
+    `${state.currentPlaylist}|${filter}|${indexes.join(",")}|${state.index}|${state.playing}`;
 
   if (!force && renderKey === lastPlaylistRenderKey) {
     return;
@@ -231,7 +298,7 @@ function renderPlaylist(force = false) {
         <div>
           <div class="track-title">Aucune musique</div>
           <div class="track-subtitle">
-            Ajoute des MP3 ou crée une playlist.
+            Cherche une musique avec YouTube.
           </div>
         </div>
       </div>
@@ -263,16 +330,30 @@ function renderPlaylist(force = false) {
         ${formatTime(track.duration)}
       </div>
 
-      <button class="add-track-btn" title="Ajouter à une playlist">＋</button>
+      <div class="track-actions">
+        <button class="icon-btn favorite-btn" title="Ajouter aux favoris">♡</button>
+        <button class="icon-btn add-track-btn" title="Ajouter à une playlist">+</button>
+        <button class="icon-btn remove-track-btn" title="Retirer de la playlist">×</button>
+      </div>
     `;
 
     row.addEventListener("click", () => {
       playTrack(trackIndex);
     });
 
+    row.querySelector(".favorite-btn").addEventListener("click", event => {
+      event.stopPropagation();
+      addTrackToFavorites(trackIndex);
+    });
+
     row.querySelector(".add-track-btn").addEventListener("click", event => {
       event.stopPropagation();
       addTrackToPlaylist(trackIndex);
+    });
+
+    row.querySelector(".remove-track-btn").addEventListener("click", event => {
+      event.stopPropagation();
+      removeTrackFromPlaylist(trackIndex);
     });
 
     playlistContainer.appendChild(row);
@@ -284,12 +365,11 @@ function renderStatus() {
 
   statusBox.innerHTML = `
     <strong>Piste :</strong> ${track ? track.title : "Aucune"}<br>
-    <strong>Index :</strong> ${state.index + 1}/${state.tracks.length}<br>
+    <strong>Playlist :</strong> ${state.currentPlaylist}<br>
     <strong>Lecture :</strong> ${state.playing ? "Oui" : "Non"}<br>
-    <strong>Volume :</strong> ${state.volume}/100<br>
     <strong>Shuffle :</strong> ${state.shuffle ? "ON" : "OFF"}<br>
     <strong>Repeat :</strong> ${state.repeat ? "ON" : "OFF"}<br>
-    <strong>Position :</strong> ${formatTime(state.position)}
+    <strong>Temps :</strong> ${formatTime(state.position)}
   `;
 }
 
@@ -312,14 +392,21 @@ function createPlaylist() {
   updateUI(true);
 }
 
+function addTrackToFavorites(trackIndex) {
+  if (!state.playlists["Favoris"].includes(trackIndex)) {
+    state.playlists["Favoris"].push(trackIndex);
+  }
+
+  updateUI(true);
+}
+
 function addTrackToPlaylist(trackIndex) {
   const names = Object.keys(state.playlists).filter(
-    name => name !== "Mes MP3"
+    name => name !== "Découvertes"
   );
 
   if (names.length === 0) {
     alert("Crée d'abord une playlist.");
-    createPlaylist();
     return;
   }
 
@@ -345,83 +432,157 @@ function addTrackToPlaylist(trackIndex) {
   updateUI(true);
 }
 
-async function loadMusic() {
-  if (!API_MODE) {
-    alert(
-      "Mode maquette : plus tard, ce bouton appellera player.load_folder('./musiques')."
-    );
+function removeTrackFromPlaylist(trackIndex) {
+  if (state.currentPlaylist === "Découvertes") {
+    state.playlists["Découvertes"] =
+      state.playlists["Découvertes"].filter(index => index !== trackIndex);
+  } else {
+    state.playlists[state.currentPlaylist] =
+      state.playlists[state.currentPlaylist].filter(index => index !== trackIndex);
+  }
+
+  updateUI(true);
+}
+
+async function playTrack(index) {
+  const track = state.tracks[index];
+
+  if (!track) return;
+
+  try {
+    const result = await apiCall("/api/play", "POST", {
+      index: track.backendIndex
+    });
+
+    if (result.status) {
+      syncStatus(result.status);
+    }
+
+    updateUI(true);
+    setTimeout(refreshStatusFromPython, 500);
+
+  } catch (error) {
+    alert("Erreur lecture : " + error.message);
+  }
+}
+
+async function playPause() {
+  try {
+    const url = state.playing ? "/api/pause" : "/api/play";
+    const result = await apiCall(url, "POST");
+
+    if (result.status) {
+      syncStatus(result.status);
+    }
+
+    updateUI(false);
+    setTimeout(refreshStatusFromPython, 500);
+
+  } catch (error) {
+    alert("Erreur play/pause : " + error.message);
+  }
+}
+
+async function stopTrack() {
+  try {
+    const result = await apiCall("/api/stop", "POST");
+
+    if (result.status) {
+      syncStatus(result.status);
+    }
+
+    state.playing = false;
+    state.position = 0;
+
+    updateUI(false);
+    setTimeout(refreshStatusFromPython, 500);
+
+  } catch (error) {
+    alert("Erreur stop : " + error.message);
+  }
+}
+
+async function nextTrack() {
+  try {
+    const result = await apiCall("/api/next", "POST");
+
+    if (result.status) {
+      syncStatus(result.status);
+    }
+
+    updateUI(true);
+    setTimeout(refreshStatusFromPython, 500);
+
+  } catch (error) {
+    alert("Erreur suivant : " + error.message);
+  }
+}
+
+async function previousTrack() {
+  try {
+    const result = await apiCall("/api/prev", "POST");
+
+    if (result.status) {
+      syncStatus(result.status);
+    }
+
+    updateUI(true);
+    setTimeout(refreshStatusFromPython, 500);
+
+  } catch (error) {
+    alert("Erreur précédent : " + error.message);
+  }
+}
+
+async function searchYoutube() {
+  const youtubeButton = document.getElementById("youtubeBtn");
+  const query = searchInput.value.trim();
+
+  if (!query) {
+    alert("Écris une musique dans la barre de recherche.");
     return;
   }
 
+  if (isSearchingYoutube) {
+    return;
+  }
+
+  isSearchingYoutube = true;
+  youtubeButton.classList.add("loading");
+  youtubeButton.textContent = "Recherche...";
+
   try {
-    const result = await apiCall("/api/load", "POST");
-    state = result.status;
+    const data = await apiCall("/api/youtube", "POST", {
+      query
+    });
+
+    if (data.track) {
+      const backendIndex = data.status?.playlist
+        ? data.status.playlist.length - 1
+        : state.playlists["Découvertes"].length;
+
+      const newIndex = addOrUpdateYoutubeTrack(data.track, backendIndex);
+
+      state.currentPlaylist = "Découvertes";
+      state.index = newIndex;
+      state.playing = true;
+      state.position = 0;
+    }
+
+    if (data.status) {
+      syncStatus(data.status);
+    }
+
+    searchInput.value = "";
     updateUI(true);
+    setTimeout(refreshStatusFromPython, 700);
+
   } catch (error) {
-    alert(error.message);
-  }
-}
-
-function playTrack(index) {
-  if (API_MODE) {
-    apiCall("/api/play", "POST", { index });
-  }
-
-  state.index = index;
-  state.position = 0;
-  state.playing = true;
-  updateUI(true);
-}
-
-function playPause() {
-  state.playing = !state.playing;
-  updateUI(false);
-
-  if (API_MODE) {
-    apiCall(state.playing ? "/api/play" : "/api/pause", "POST");
-  }
-}
-
-function stopTrack() {
-  state.playing = false;
-  state.position = 0;
-  updateUI(false);
-
-  if (API_MODE) {
-    apiCall("/api/stop", "POST");
-  }
-}
-
-function nextTrack() {
-  if (state.tracks.length === 0) return;
-
-  if (state.shuffle) {
-    state.index = Math.floor(Math.random() * state.tracks.length);
-  } else {
-    state.index = (state.index + 1) % state.tracks.length;
-  }
-
-  state.position = 0;
-  state.playing = true;
-  updateUI(true);
-
-  if (API_MODE) {
-    apiCall("/api/next", "POST");
-  }
-}
-
-function previousTrack() {
-  if (state.tracks.length === 0) return;
-
-  state.index =
-    (state.index - 1 + state.tracks.length) % state.tracks.length;
-
-  state.position = 0;
-  state.playing = true;
-  updateUI(true);
-
-  if (API_MODE) {
-    apiCall("/api/prev", "POST");
+    alert("Erreur YouTube : " + error.message);
+  } finally {
+    isSearchingYoutube = false;
+    youtubeButton.classList.remove("loading");
+    youtubeButton.textContent = "YouTube";
   }
 }
 
@@ -433,21 +594,12 @@ document.getElementById("createPlaylistBtn").addEventListener("click", () => {
   createPlaylist();
 });
 
-document.getElementById("loadBtn").addEventListener("click", () => {
-  loadMusic();
-});
-
-document.getElementById("heroLoadBtn").addEventListener("click", () => {
-  loadMusic();
-});
-
 document.getElementById("heroPlayBtn").addEventListener("click", () => {
-  const firstTrackIndex = getPlaylistIndexes()[0] || 0;
-  playTrack(firstTrackIndex);
+  playPause();
 });
 
 document.getElementById("youtubeBtn").addEventListener("click", () => {
-  alert("Plus tard, ce bouton appellera client_yt_music.py.");
+  searchYoutube();
 });
 
 playPauseBtn.addEventListener("click", () => {
@@ -466,29 +618,38 @@ document.getElementById("prevBtn").addEventListener("click", () => {
   previousTrack();
 });
 
-shuffleBtn.addEventListener("click", () => {
-  state.shuffle = !state.shuffle;
-  updateUI(false);
-});
+shuffleBtn.addEventListener("click", async () => {
+  try {
+    const result = await apiCall("/api/shuffle", "POST");
 
-repeatBtn.addEventListener("click", () => {
-  state.repeat = !state.repeat;
-  updateUI(false);
-});
+    if (result.status) {
+      syncStatus(result.status);
+    }
 
-volumeSlider.addEventListener("input", event => {
-  state.volume = Number(event.target.value);
-  updateUI(false);
-
-  if (API_MODE) {
-    apiCall("/api/volume", "POST", { volume: state.volume });
+    updateUI(false);
+  } catch (error) {
+    alert("Erreur shuffle : " + error.message);
   }
 });
 
-progressBar.addEventListener("input", () => {
+repeatBtn.addEventListener("click", async () => {
+  try {
+    const result = await apiCall("/api/repeat", "POST");
+
+    if (result.status) {
+      syncStatus(result.status);
+    }
+
+    updateUI(false);
+  } catch (error) {
+    alert("Erreur repeat : " + error.message);
+  }
+});
+
+progressBar.addEventListener("input", async () => {
   const track = getCurrentTrack();
 
-  if (!track) {
+  if (!track || !track.duration) {
     return;
   }
 
@@ -497,8 +658,12 @@ progressBar.addEventListener("input", () => {
 
   updateUI(false);
 
-  if (API_MODE) {
-    apiCall("/api/seek", "POST", { seconds: state.position });
+  try {
+    await apiCall("/api/seek", "POST", {
+      seconds: state.position
+    });
+  } catch (error) {
+    console.log("Erreur seek :", error.message);
   }
 });
 
@@ -506,25 +671,15 @@ searchInput.addEventListener("input", () => {
   renderPlaylist(true);
 });
 
+searchInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    searchYoutube();
+  }
+});
+
 setInterval(() => {
-  const track = getCurrentTrack();
-
-  if (!track || !state.playing || API_MODE) {
-    return;
-  }
-
-  state.position += 1;
-
-  if (state.position >= track.duration) {
-    if (state.repeat) {
-      state.position = 0;
-    } else {
-      nextTrack();
-      return;
-    }
-  }
-
-  updateUI(false);
+  refreshStatusFromPython();
 }, 1000);
 
 updateUI(true);

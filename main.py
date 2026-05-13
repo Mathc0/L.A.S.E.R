@@ -47,27 +47,46 @@ def browse_music_files():
     
     return list(file_paths) if file_paths else []
 
-def auto_tag_music_folder():
+def auto_tag_music_folder(folder_path: str = None, recursive: bool = True):
     """
     Analyse et met à jour les métadonnées des fichiers MP3 via Discogs.
     Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+    
+    :param folder_path: chemin du dossier à scanner (défaut: MUSIC_FOLDER)
+    :param recursive: si True, cherche dans les sous-dossiers aussi
     """
-    if not os.path.isdir(MUSIC_FOLDER):
-        print(f"⚠️  Dossier '{MUSIC_FOLDER}' non trouvé. Ignoré le tagging.")
+    if folder_path is None:
+        folder_path = MUSIC_FOLDER
+    
+    if not os.path.isdir(folder_path):
+        print(f"⚠️  Dossier '{folder_path}' non trouvé. Ignoré le tagging.")
         return
     
-    mp3_files = [f for f in os.listdir(MUSIC_FOLDER) if f.lower().endswith(".mp3")]
+    # Collecte tous les fichiers MP3
+    mp3_files = []
+    if recursive:
+        # Cherche dans tous les sous-dossiers
+        for root, dirs, files in os.walk(folder_path):
+            for filename in sorted(files):
+                if filename.lower().endswith(".mp3"):
+                    full_path = os.path.join(root, filename)
+                    mp3_files.append(full_path)
+    else:
+        # Cherche seulement dans le dossier principal
+        for filename in sorted(os.listdir(folder_path)):
+            if filename.lower().endswith(".mp3"):
+                full_path = os.path.join(folder_path, filename)
+                mp3_files.append(full_path)
     
     if not mp3_files:
-        print(f"ℹ️  Aucun fichier MP3 trouvé dans '{MUSIC_FOLDER}'.")
+        print(f"ℹ️  Aucun fichier MP3 trouvé dans '{folder_path}'.")
         return
     
     print(f"\n🏷️  Tagging des métadonnées MP3 ({len(mp3_files)} fichier(s))...\n")
     success_count = 0
     
-    for filename in sorted(mp3_files):
-        file_path = os.path.join(MUSIC_FOLDER, filename)
-        print(f"🔍 Traitement de : {filename}")
+    for file_path in sorted(mp3_files):
+        print(f"🔍 Traitement de : {os.path.basename(file_path)}")
         try:
             if tag_mp3_file(file_path):
                 success_count += 1
@@ -395,6 +414,25 @@ def menu_local(player: MusicPlayer):
             print(f"⚠️  Aucun fichier MP3 trouvé.")
             return
         print(f"✅  {nb} piste(s) chargée(s).\n")
+        
+        # Tagging automatique des métadonnées
+        try:
+            if folder_to_load:
+                auto_tag_music_folder(folder_to_load, recursive=recursive)
+            else:
+                # Pour les fichiers individuels, on tagge chaque fichier
+                print(f"\n🏷️  Tagging des métadonnées MP3 ({len(files_to_load)} fichier(s))...\n")
+                success_count = 0
+                for file_path in sorted(files_to_load):
+                    print(f"🔍 Traitement de : {os.path.basename(file_path)}")
+                    try:
+                        if tag_mp3_file(file_path):
+                            success_count += 1
+                    except Exception as e:
+                        print(f"   ❌ Erreur inattendue : {e}")
+                print(f"\n✅ Tagging terminé : {success_count}/{len(files_to_load)} fichier(s) mis à jour.\n")
+        except Exception as e:
+            print(f"⚠️  Erreur lors du tagging automatique : {e}\n")
         
     except FileNotFoundError:
         print(f"⚠️  Le dossier sélectionné n'existe pas.")

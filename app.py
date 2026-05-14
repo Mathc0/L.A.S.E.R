@@ -61,7 +61,13 @@ def search_youtube():
 @app.route("/api/play", methods=["POST"])
 def api_play():
     try:
-        youtube_client.play()
+        data = request.get_json(silent=True) or {}
+        index = data.get("index")
+
+        if index is not None:
+            youtube_client.play(int(index))
+        else:
+            youtube_client.play()
 
         return jsonify({
             "success": True,
@@ -73,7 +79,6 @@ def api_play():
             "success": False,
             "message": str(error)
         }), 500
-
 
 @app.route("/api/pause", methods=["POST"])
 def api_pause():
@@ -152,6 +157,71 @@ def api_repeat():
             "success": True,
             "status": youtube_client.get_status()
         })
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "message": str(error)
+        }), 500
+
+@app.route("/api/remove_youtube", methods=["POST"])
+def api_remove_youtube():
+    data = request.get_json()
+    index = data.get("index")
+
+    try:
+        index = int(index)
+
+        if 0 <= index < len(youtube_client._playlist):
+            youtube_client._playlist.pop(index)
+
+            if youtube_client._current_index >= len(youtube_client._playlist):
+                youtube_client._current_index = max(0, len(youtube_client._playlist) - 1)
+
+            return jsonify({
+                "success": True,
+                "status": youtube_client.get_status()
+            })
+
+        return jsonify({
+            "success": False,
+            "message": "Index invalide"
+        }), 400
+
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "message": str(error)
+        }), 500
+
+@app.route("/api/seek", methods=["POST"])
+def api_seek():
+    data = request.get_json()
+    seconds = data.get("seconds", 0)
+
+    try:
+        youtube_client.seek(seconds)
+
+        return jsonify({
+            "success": True,
+            "status": youtube_client.get_status()
+        })
+
+    except Exception as error:
+        return jsonify({
+            "success": False,
+            "message": str(error)
+        }), 500
+
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    try:
+        youtube_client.stop()
+
+        return jsonify({
+            "success": True,
+            "status": youtube_client.get_status()
+        })
+
     except Exception as error:
         return jsonify({
             "success": False,

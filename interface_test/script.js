@@ -25,6 +25,7 @@ const bottomCover = document.getElementById("bottomCover");
 
 let lastPlaylistRenderKey = "";
 let isSearchingYoutube = false;
+let isSeeking = false;
 
 let state = {
   currentPlaylist: "Découvertes",
@@ -38,8 +39,15 @@ let state = {
   tracks: [],
 
   playlists: {
-    "Favoris": [],
-    "Découvertes": []
+    "Favoris": {
+      icon: "🩵",
+      tracks: []
+    },
+
+    "Découvertes": {
+      icon: "🗺️",
+      tracks: []
+    }
   }
 };
 
@@ -55,7 +63,11 @@ function getCurrentTrack() {
 }
 
 function getPlaylistIndexes() {
-  return state.playlists[state.currentPlaylist] || [];
+  const playlist = state.playlists[state.currentPlaylist];
+
+  if (!playlist) return [];
+
+  return playlist.tracks || [];
 }
 
 async function apiCall(url, method = "GET", data = null) {
@@ -121,8 +133,8 @@ function addOrUpdateYoutubeTrack(track, backendIndex) {
       backendIndex
     };
 
-    if (!state.playlists["Découvertes"].includes(existingIndex)) {
-      state.playlists["Découvertes"].push(existingIndex);
+    if (!state.playlists["Découvertes"].tracks.includes(existingIndex)) {
+      state.playlists["Découvertes"].tracks.push(existingIndex);
     }
 
     return existingIndex;
@@ -141,8 +153,8 @@ function addOrUpdateYoutubeTrack(track, backendIndex) {
   state.tracks.push(newTrack);
   const newIndex = state.tracks.length - 1;
 
-  if (!state.playlists["Découvertes"].includes(newIndex)) {
-    state.playlists["Découvertes"].push(newIndex);
+  if (!state.playlists["Découvertes"].tracks.includes(newIndex)) {
+    state.playlists["Découvertes"].tracks.push(newIndex);
   }
 
   return newIndex;
@@ -194,10 +206,10 @@ async function refreshStatusFromPython() {
   try {
     const result = await apiCall("/api/status");
 
-    if (result.status) {
-      syncStatus(result.status);
-      updateUI(false);
-    }
+ if (result.status && !isSeeking) {
+  syncStatus(result.status);
+  updateUI(false);
+}
   } catch (error) {
     console.log("Status non disponible :", error.message);
   }
@@ -242,8 +254,8 @@ function renderPlaylistMenu() {
     card.className =
       `playlist-card ${state.currentPlaylist === name ? "active-card" : ""}`;
 
-    const emoji = name === "Favoris" ? "🩵" : "✨";
-    const count = state.playlists[name].length;
+    const emoji = state.playlists[name].icon || "✨";
+    const count = state.playlists[name].tracks.length;
 
     card.innerHTML = `
       <span>${emoji}</span>
@@ -331,9 +343,20 @@ function renderPlaylist(force = false) {
       </div>
 
       <div class="track-actions">
-        <button class="icon-btn favorite-btn" title="Ajouter aux favoris">♡</button>
+        <button class="icon-btn favorite-btn ${
+          state.playlists["Favoris"].tracks.includes(trackIndex)
+            ? "active-favorite"
+            : ""
+        }">
+          ${
+            state.playlists["Favoris"].tracks.includes(trackIndex)
+              ? "🩵"
+              : "🤍"
+          }
+        </button>
+
         <button class="icon-btn add-track-btn" title="Ajouter à une playlist">+</button>
-        <button class="icon-btn remove-track-btn" title="Retirer de la playlist">×</button>
+        <button class="icon-btn remove-track-btn" title="Retirer de la playlist">🗑️</button>
       </div>
     `;
 
@@ -343,7 +366,7 @@ function renderPlaylist(force = false) {
 
     row.querySelector(".favorite-btn").addEventListener("click", event => {
       event.stopPropagation();
-      addTrackToFavorites(trackIndex);
+      toggleFavorite(trackIndex);
     });
 
     row.querySelector(".add-track-btn").addEventListener("click", event => {
@@ -380,6 +403,8 @@ function createPlaylist() {
     return;
   }
 
+  const icon = prompt("Choisis un emoji pour la playlist 🎵") || "✨";
+
   const cleanName = name.trim();
 
   if (state.playlists[cleanName]) {
@@ -387,14 +412,24 @@ function createPlaylist() {
     return;
   }
 
-  state.playlists[cleanName] = [];
+  state.playlists[cleanName] = {
+    icon: icon,
+    tracks: []
+  };
+
   state.currentPlaylist = cleanName;
+
   updateUI(true);
 }
 
-function addTrackToFavorites(trackIndex) {
-  if (!state.playlists["Favoris"].includes(trackIndex)) {
-    state.playlists["Favoris"].push(trackIndex);
+function toggleFavorite(trackIndex) {
+  const favorites = state.playlists["Favoris"].tracks;
+
+  if (favorites.includes(trackIndex)) {
+    state.playlists["Favoris"].tracks =
+      favorites.filter(index => index !== trackIndex);
+  } else {
+    favorites.push(trackIndex);
   }
 
   updateUI(true);
@@ -425,20 +460,42 @@ function addTrackToPlaylist(trackIndex) {
     return;
   }
 
-  if (!state.playlists[playlistName].includes(trackIndex)) {
-    state.playlists[playlistName].push(trackIndex);
+  if (!state.playlists[playlistName].tracks.includes(trackIndex)) {
+    state.playlists[playlistName].tracks.push(trackIndex);
   }
 
   updateUI(true);
 }
 
-function removeTrackFromPlaylist(trackIndex) {
-  if (state.currentPlaylist === "Découvertes") {
-    state.playlists["Découvertes"] =
-      state.playlists["Découvertes"].filter(index => index !== trackIndex);
-  } else {
-    state.playlists[state.currentPlaylist] =
-      state.playlists[state.currentPlaylist].filter(index => index !== trackIndex);
+async function removeTrackFromPlaylist(trackIndex) {
+  const playlist = state.playlists[state.currentPlaylist];
+
+  if (!playlist) return;
+
+  const track = state.tracks[trackIndex];
+
+  state.playlists[state.currentPlaylist].tracks =
+    playlist.tracks.filter(index => index !== trackIndex);
+
+  if (state.currentPlaylist === "Découvertes" && track?.source === "youtube") {
+    try {
+      await apiCall("/api/remove_youtube", "POST", {
+        index: track.backendIndex
+      });
+    } catch (error) {
+      console.log("Suppression côté Python impossible :", error.message);
+    }
+  }
+
+  if (state.index === trackIndex) {
+    state.playing = false;
+    state.position = 0;
+
+    const remaining = state.playlists[state.currentPlaylist].tracks;
+
+    if (remaining.length > 0) {
+      state.index = remaining[0];
+    }
   }
 
   updateUI(true);
@@ -450,6 +507,12 @@ async function playTrack(index) {
   if (!track) return;
 
   try {
+    // On met tout de suite l’interface sur la bonne musique
+    state.index = index;
+    state.position = 0;
+    state.playing = true;
+    updateUI(true);
+
     const result = await apiCall("/api/play", "POST", {
       index: track.backendIndex
     });
@@ -465,7 +528,6 @@ async function playTrack(index) {
     alert("Erreur lecture : " + error.message);
   }
 }
-
 async function playPause() {
   try {
     const url = state.playing ? "/api/pause" : "/api/play";
@@ -559,7 +621,7 @@ async function searchYoutube() {
     if (data.track) {
       const backendIndex = data.status?.playlist
         ? data.status.playlist.length - 1
-        : state.playlists["Découvertes"].length;
+        : state.playlists["Découvertes"].tracks.length;
 
       const newIndex = addOrUpdateYoutubeTrack(data.track, backendIndex);
 
@@ -646,24 +708,42 @@ repeatBtn.addEventListener("click", async () => {
   }
 });
 
-progressBar.addEventListener("input", async () => {
+progressBar.addEventListener("input", () => {
   const track = getCurrentTrack();
 
   if (!track || !track.duration) {
     return;
   }
 
-  state.position =
-    (Number(progressBar.value) / 100) * track.duration;
+  isSeeking = true;
+  state.position = (Number(progressBar.value) / 100) * track.duration;
 
-  updateUI(false);
+  currentTime.textContent = formatTime(state.position);
+});
+
+progressBar.addEventListener("change", async () => {
+  const track = getCurrentTrack();
+
+  if (!track || !track.duration) {
+    isSeeking = false;
+    return;
+  }
+
+  const seconds = (Number(progressBar.value) / 100) * track.duration;
 
   try {
     await apiCall("/api/seek", "POST", {
-      seconds: state.position
+      seconds
     });
+
+    state.position = seconds;
+    updateUI(false);
+    setTimeout(refreshStatusFromPython, 400);
+
   } catch (error) {
     console.log("Erreur seek :", error.message);
+  } finally {
+    isSeeking = false;
   }
 });
 
@@ -681,5 +761,7 @@ searchInput.addEventListener("keydown", event => {
 setInterval(() => {
   refreshStatusFromPython();
 }, 1000);
+
+updateUI(true);
 
 updateUI(true);

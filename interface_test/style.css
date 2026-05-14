@@ -656,4 +656,52 @@ input[type="range"] {
     width: 130px;
     height: 130px;
   }
+
+.favorite-btn.liked {
+  color: #6ed7db;
+  border-color: rgba(110, 215, 219, 0.7);
+  background: rgba(110, 215, 219, 0.18);
+  animation: heartPop 0.35s ease;
+}
+
+@keyframes heartPop {
+  0% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.35);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.favorite-btn.liked {
+  color: #6ed7db;
+  border-color: rgba(110, 215, 219, 0.8);
+  background: rgba(110, 215, 219, 0.22);
+  animation: heartPop 0.35s ease;
+}
+
+@keyframes heartPop {
+  0% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.35);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.favorite-btn.active-favorite {
+  background: rgba(110, 215, 219, 0.22);
+  border: 1px solid rgba(110, 215, 219, 0.6);
+}
+
 }

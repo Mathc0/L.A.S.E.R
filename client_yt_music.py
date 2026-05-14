@@ -11,6 +11,7 @@ import io
 import os
 import random
 import time
+import threading
 
 vlc_path = os.path.join(os.getcwd(), "vlc_files")
 os.environ["PATH"] += os.pathsep + vlc_path
@@ -39,11 +40,25 @@ class YouTubeMusicClient:
         self._shuffle = False
         self._repeat = False
 
+        # Empêche la surveillance de déclencher plusieurs fois la même action
+        self._is_changing_track = False
+
+        # Permet de savoir si l'utilisateur a volontairement arrêté la musique
+        self._manual_stop = False
+        self._is_paused = False
+
         self._event_manager = self._player.event_manager()
         self._event_manager.event_attach(
             vlc.EventType.MediaPlayerEndReached,
             self._on_end_reached
         )
+
+        # Thread de surveillance pour gérer les fins de musique YouTube
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_playback,
+            daemon=True
+        )
+        self._monitor_thread.start()
 
     def __del__(self):
         try:
@@ -54,45 +69,22 @@ class YouTubeMusicClient:
             pass
 
     def search_and_play(self, query: str) -> dict:
-        """
-        Recherche une musique YouTube,
-        l'ajoute à la playlist,
-        puis lance la lecture.
-        """
-
         track = self._fetch_info(query)
 
         self._playlist.append(track)
         self._current_index = len(self._playlist) - 1
 
+        self._manual_stop = False
         self._play_url(track["url"])
 
         return track
 
     def search_and_queue(self, query: str) -> dict:
-        """
-        Recherche une musique YouTube
-        et l'ajoute à la playlist sans la lire.
-        """
-
         track = self._fetch_info(query)
-
         self._playlist.append(track)
-
         return track
 
     def _fetch_info(self, query: str) -> dict:
-        """
-        Recherche une musique sur YouTube avec yt-dlp.
-
-        On récupère :
-        - le titre
-        - l'artiste / chaîne YouTube
-        - l'URL audio
-        - la miniature YouTube pour la jaquette
-        - le lien de la vidéo
-        """
-
         ydl_opts = {
             "format": "bestaudio[ext=m4a]/bestaudio/best",
             "quiet": True,
@@ -144,10 +136,6 @@ class YouTubeMusicClient:
             return track
 
     def download_audio(self, query, output_path="%(title)s.%(ext)s"):
-        """
-        Télécharge l'audio de la première vidéo YouTube trouvée.
-        """
-
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             static_ffmpeg.add_paths()
 
@@ -198,9 +186,8 @@ class YouTubeMusicClient:
             raise RuntimeError(f"Échec du téléchargement : {e}") from e
 
     def _play_url(self, url: str):
-        """
-        Lance la lecture d'une URL audio avec VLC.
-        """
+        self._manual_stop = False
+        self._is_paused = False
 
         self._player.stop()
 
@@ -215,12 +202,11 @@ class YouTubeMusicClient:
         self._player.play()
 
     def play(self, index=None):
-        """
-        Lance ou reprend la lecture.
-        """
-
         if not self._playlist:
             raise ValueError("Playlist vide")
+
+        self._manual_stop = False
+        self._is_paused = False
 
         if index is not None:
             if index < 0 or index >= len(self._playlist):
@@ -233,72 +219,50 @@ class YouTubeMusicClient:
         self._player.play()
 
     def pause(self):
-        """
-        Met en pause ou reprend la lecture.
-        """
-
         self._player.pause()
+        self._is_paused = not self._is_paused
 
     def stop(self):
-        """
-        Arrête la lecture.
-        """
-
+        self._manual_stop = True
+        self._is_paused = False
         self._player.stop()
 
     def next_track(self):
-        """
-        Passe à la musique suivante.
-        """
-
         if not self._playlist:
             return
 
-        if self._shuffle:
-            self._current_index = random.randint(
-                0,
-                len(self._playlist) - 1
-            )
+        if self._shuffle and len(self._playlist) > 1:
+            old_index = self._current_index
+
+            while self._current_index == old_index:
+                self._current_index = random.randint(
+                    0,
+                    len(self._playlist) - 1
+                )
         else:
             self._current_index += 1
 
             if self._current_index >= len(self._playlist):
-                if self._repeat:
-                    self._current_index = 0
-                else:
-                    self._current_index = len(self._playlist) - 1
-                    self.stop()
-                    return
-
-        self._play_url(
-            self._playlist[self._current_index]["url"]
-        )
-
-    def previous_track(self):
-        """
-        Revient à la musique précédente.
-        """
-
-        if not self._playlist:
-            return
-
-        self._current_index -= 1
-
-        if self._current_index < 0:
-            if self._repeat:
-                self._current_index = len(self._playlist) - 1
-            else:
                 self._current_index = 0
 
         self._play_url(
             self._playlist[self._current_index]["url"]
         )
 
-    def set_volume(self, volume):
-        """
-        Change le volume entre 0 et 100.
-        """
+    def previous_track(self):
+        if not self._playlist:
+            return
 
+        self._current_index -= 1
+
+        if self._current_index < 0:
+            self._current_index = len(self._playlist) - 1
+
+        self._play_url(
+            self._playlist[self._current_index]["url"]
+        )
+
+    def set_volume(self, volume):
         self._volume = max(0, min(100, int(volume)))
         self._player.audio_set_volume(self._volume)
 
@@ -326,10 +290,6 @@ class YouTubeMusicClient:
         return [track["title"] for track in self._playlist]
 
     def get_playlist_full(self):
-        """
-        Retourne la playlist complète avec les jaquettes.
-        """
-
         return self._playlist
 
     def get_duration(self):
@@ -349,16 +309,14 @@ class YouTubeMusicClient:
         return time_ms // 1000
 
     def seek(self, seconds):
+        self._manual_stop = False
+        self._is_paused = False
         self._player.set_time(int(seconds) * 1000)
 
     def is_playing(self):
         return bool(self._player.is_playing())
 
     def get_status(self):
-        """
-        Retourne les infos utiles pour l'interface web.
-        """
-
         if self._playlist:
             current_track = self._playlist[self._current_index]
         else:
@@ -381,15 +339,72 @@ class YouTubeMusicClient:
             "playlist": self._playlist,
         }
 
+    def _go_to_next_or_repeat(self):
+        if self._is_changing_track:
+            return
+
+        self._is_changing_track = True
+
+        try:
+            if not self._playlist:
+                return
+
+            if self._repeat:
+                current_track = self._playlist[self._current_index]
+                self._play_url(current_track["url"])
+            else:
+                self.next_track()
+
+        finally:
+            time.sleep(1)
+            self._is_changing_track = False
+
     def _on_end_reached(self, event):
-        """
-        Quand une musique se termine,
-        VLC appelle automatiquement cette fonction.
-        """
+        if self._manual_stop or self._is_paused:
+            return
 
-        is_last_track = self._current_index == len(self._playlist) - 1
+        self._go_to_next_or_repeat()
 
-        if not is_last_track:
-            self.next_track()
-        elif self._repeat:
-            self.next_track()
+    def _monitor_playback(self):
+        last_position = 0
+        stuck_counter = 0
+
+        while True:
+            time.sleep(1)
+
+            try:
+                if self._manual_stop or self._is_paused:
+                    continue
+
+                if not self._playlist:
+                    continue
+
+                duration = self.get_duration()
+                position = self.get_position()
+                is_playing = self.is_playing()
+
+                if duration <= 0:
+                    continue
+
+                if is_playing and position >= duration - 2:
+                    self._go_to_next_or_repeat()
+                    continue
+
+                if not is_playing and position > 5:
+                    self._go_to_next_or_repeat()
+                    continue
+
+                if position == last_position and position >= duration - 8:
+                    stuck_counter += 1
+
+                    if stuck_counter >= 3:
+                        self._go_to_next_or_repeat()
+                        stuck_counter = 0
+                        continue
+                else:
+                    stuck_counter = 0
+
+                last_position = position
+
+            except Exception as error:
+                print(f"[YouTube monitor] Erreur : {error}")

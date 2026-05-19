@@ -1,4 +1,5 @@
 import time
+import requests
 import client_yt_music
 from player import MusicPlayer
 import os
@@ -180,6 +181,54 @@ def show_playlist(player: MusicPlayer):
     print()
 
 
+def show_lyrics(track_name: str):
+    """
+    Récupère et affiche les paroles de la piste via l'API lyrics.ovh.
+    Affiche les paroles page par page (30 lignes) dans le terminal.
+    """
+    print(f"\nRecherche des paroles de : {track_name} ...")
+    try:
+        suggest_url = f"https://api.lyrics.ovh/suggest/{requests.utils.quote(track_name)}"
+        r = requests.get(suggest_url, timeout=8)
+        r.raise_for_status()
+        results = r.json().get("data", [])
+        if not results:
+            print("Aucun résultat trouvé pour cette musique.")
+            return
+        best = results[0]
+        artist = best["artist"]["name"]
+        title = best["title"]
+
+        lyrics_url = f"https://api.lyrics.ovh/v1/{requests.utils.quote(artist)}/{requests.utils.quote(title)}"
+        r2 = requests.get(lyrics_url, timeout=8)
+        r2.raise_for_status()
+        lyrics = r2.json().get("lyrics", "").strip()
+        if not lyrics:
+            print("Paroles introuvables.")
+            return
+
+        lines = lyrics.splitlines()
+        page_size = 30
+        print(f"\n--- Paroles : {artist} — {title} ---\n")
+        for i, line in enumerate(lines):
+            print(line)
+            if (i + 1) % page_size == 0 and i + 1 < len(lines):
+                try:
+                    input("\n[Entrée pour continuer, Ctrl+C pour arrêter]")
+                    print()
+                except KeyboardInterrupt:
+                    print()
+                    return
+        print("\n--- Fin des paroles ---\n")
+
+    except requests.exceptions.Timeout:
+        print("Délai dépassé. Vérifiez votre connexion internet.")
+    except requests.exceptions.RequestException as e:
+        print(f"Erreur réseau : {e}")
+    except Exception as e:
+        print(f"Impossible de récupérer les paroles : {e}")
+
+
 def generic_player_menu(player, player_type: str):
     """
     Menu de contrôle générique pour un lecteur (local ou YouTube).
@@ -197,6 +246,7 @@ Commandes disponibles :
   playlist      → afficher toutes les pistes
   status        → afficher l'état du player
   progress      → afficher la barre de progression
+  parole        → rechercher les paroles de la musique en cours sur Google
   help          → afficher cette aide
   back          → retourner au menu principal
 """
@@ -215,6 +265,7 @@ Commandes disponibles :
   playlist                → afficher toutes les pistes
   status                  → afficher l'état du player
   progress                → afficher la barre de progression
+  parole                  → rechercher les paroles de la musique en cours sur Google
   help                    → afficher cette aide
   back                    → retourner au menu principal
 """
@@ -331,6 +382,13 @@ Commandes disponibles :
             except KeyboardInterrupt:
                 print("\nProgression interrompue.")
                 continue
+
+        elif cmd == "parole":
+            track = player.get_current_track_name()
+            if track == "Aucune piste":
+                print("Aucune musique en cours de lecture.")
+            else:
+                show_lyrics(track)
 
         elif cmd == "help":
             print(HELP)

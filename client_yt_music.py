@@ -39,11 +39,9 @@ class YouTubeMusicClient:
         self._volume = 80
         self._shuffle = False
         self._repeat = False
+        self._last_search_query = ""
 
-        # Empêche la surveillance de déclencher plusieurs fois la même action
         self._is_changing_track = False
-
-        # Permet de savoir si l'utilisateur a volontairement arrêté la musique
         self._manual_stop = False
         self._is_paused = False
 
@@ -53,7 +51,6 @@ class YouTubeMusicClient:
             self._on_end_reached
         )
 
-        # Thread de surveillance pour gérer les fins de musique YouTube
         self._monitor_thread = threading.Thread(
             target=self._monitor_playback,
             daemon=True
@@ -69,12 +66,15 @@ class YouTubeMusicClient:
             pass
 
     def search_and_play(self, query: str) -> dict:
+        self._last_search_query = query
+
         track = self._fetch_info(query)
 
         self._playlist.append(track)
         self._current_index = len(self._playlist) - 1
 
         self._manual_stop = False
+        self._is_paused = False
         self._play_url(track["url"])
 
         return track
@@ -83,6 +83,106 @@ class YouTubeMusicClient:
         track = self._fetch_info(query)
         self._playlist.append(track)
         return track
+    
+    def _auto_add_related_track(self):
+        """
+        Ajoute automatiquement une musique liée,
+        en évitant surtout les longues playlists/albums.
+        """
+
+        if not self._playlist:
+            return False
+
+        try:
+            current_track = self._playlist[self._current_index]
+
+            current_title = current_track.get("title", "")
+            current_artist = current_track.get("artist", "")
+
+            related_queries = [
+                f"{current_artist} popular songs",
+                f"{current_artist} official music video",
+                f"{current_artist} hits",
+                f"songs like {current_title} {current_artist}",
+            ]
+
+            blocked_words = [
+                "full album",
+                "album complet",
+                "playlist complète",
+                "compilation",
+                "1 hour",
+                "2 hours",
+                "one hour",
+                "two hours",
+            ]
+
+            existing_urls = [
+                item.get("webpage_url")
+                for item in self._playlist
+            ]
+
+            for query in related_queries:
+                with YoutubeDL({
+                    "format": "bestaudio[ext=m4a]/bestaudio/best",
+                    "quiet": True,
+                    "no_warnings": True,
+                    "noplaylist": True,
+                }) as ydl:
+
+                    info = ydl.extract_info(
+                        f"ytsearch15:{query}",
+                        download=False
+                    )
+
+                    if not info or not info.get("entries"):
+                        continue
+
+                    for entry in info["entries"]:
+                        title = entry.get("title", "")
+                        title_lower = title.lower()
+                        webpage_url = entry.get("webpage_url", "")
+                        duration = entry.get("duration") or 0
+
+                        if not title or not webpage_url:
+                            continue
+
+                        if webpage_url in existing_urls:
+                            continue
+
+                        # On refuse seulement les vidéos vraiment trop longues
+                        if duration and duration > 600:
+                            continue
+
+                        # On refuse seulement les vrais albums/playlists longues
+                        if any(word in title_lower for word in blocked_words):
+                            continue
+
+                        audio_url = entry.get("url")
+
+                        if not audio_url:
+                            continue
+
+                        track = {
+                            "title": entry.get("title", "Titre inconnu"),
+                            "artist": entry.get("uploader", "YouTube"),
+                            "url": audio_url,
+                            "cover": entry.get("thumbnail", ""),
+                            "webpage_url": webpage_url
+                        }
+
+                        self._playlist.append(track)
+
+                        print("[AUTOPLAY] Ajout automatique :", track["title"])
+
+                        return True
+
+            print("[AUTOPLAY] Aucun résultat correct trouvé")
+            return False
+
+        except Exception as error:
+            print("[AUTOPLAY] Erreur :", error)
+            return False
 
     def _fetch_info(self, query: str) -> dict:
         ydl_opts = {
@@ -125,15 +225,13 @@ class YouTubeMusicClient:
 
                 audio_url = best_format["url"]
 
-            track = {
+            return {
                 "title": entry.get("title", "Titre inconnu"),
                 "artist": entry.get("uploader", "YouTube"),
                 "url": audio_url,
                 "cover": entry.get("thumbnail", ""),
                 "webpage_url": entry.get("webpage_url", "")
             }
-
-            return track
 
     def download_audio(self, query, output_path="%(title)s.%(ext)s"):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
@@ -206,14 +304,21 @@ class YouTubeMusicClient:
             raise ValueError("Playlist vide")
 
         self._manual_stop = False
-        self._is_paused = False
 
         if index is not None:
+            index = int(index)
+
             if index < 0 or index >= len(self._playlist):
                 raise IndexError("Index invalide")
 
+            self._is_paused = False
             self._current_index = index
             self._play_url(self._playlist[self._current_index]["url"])
+            return
+
+        if self._is_paused:
+            self._is_paused = False
+            self._player.play()
             return
 
         self._player.play()
@@ -351,9 +456,20 @@ class YouTubeMusicClient:
 
             if self._repeat:
                 current_track = self._playlist[self._current_index]
+                self._manual_stop = False
+                self._is_paused = False
                 self._play_url(current_track["url"])
-            else:
+                return
+
+            if self._current_index < len(self._playlist) - 1:
                 self.next_track()
+            else:
+                added = self._auto_add_related_track()
+
+                if added:
+                    self.next_track()
+                else:
+                    self.stop()
 
         finally:
             time.sleep(1)
@@ -381,23 +497,18 @@ class YouTubeMusicClient:
 
                 duration = self.get_duration()
                 position = self.get_position()
-                is_playing = self.is_playing()
 
                 if duration <= 0:
                     continue
 
-                if is_playing and position >= duration - 2:
+                if position >= duration - 5:
                     self._go_to_next_or_repeat()
                     continue
 
-                if not is_playing and position > 5:
-                    self._go_to_next_or_repeat()
-                    continue
-
-                if position == last_position and position >= duration - 8:
+                if position == last_position and position >= duration - 10:
                     stuck_counter += 1
 
-                    if stuck_counter >= 3:
+                    if stuck_counter >= 2:
                         self._go_to_next_or_repeat()
                         stuck_counter = 0
                         continue

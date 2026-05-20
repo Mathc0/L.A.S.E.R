@@ -704,4 +704,44 @@ input[type="range"] {
   border: 1px solid rgba(110, 215, 219, 0.6);
 }
 
+.delete-playlist-btn {
+  margin-left: auto;
+
+  width: 32px;
+  height: 32px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.08);
+
+  color: #ff5a7a;
+
+  font-size: 0.9rem;
+  font-weight: bold;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+
+.delete-playlist-btn:hover {
+  background: rgba(255, 90, 122, 0.18);
+
+  color: #ff7b96;
+
+  transform: scale(1.08);
+}
+
+.delete-playlist-btn:active {
+  transform: scale(0.95);
+}
+
 }

@@ -257,18 +257,45 @@ function renderPlaylistMenu() {
     const emoji = state.playlists[name].icon || "✨";
     const count = state.playlists[name].tracks.length;
 
+    const canDelete =
+      name !== "Favoris" &&
+      name !== "Découvertes";
+
     card.innerHTML = `
       <span>${emoji}</span>
+
       <div>
         <strong>${name}</strong>
         <small>${count} titre${count > 1 ? "s" : ""}</small>
       </div>
+
+      ${
+        canDelete
+          ? `
+            <button
+              class="delete-playlist-btn"
+              title="Supprimer"
+            >
+              ❌
+            </button>
+          `
+          : ""
+      }
     `;
 
     card.addEventListener("click", () => {
       state.currentPlaylist = name;
       updateUI(true);
     });
+
+    const deleteBtn = card.querySelector(".delete-playlist-btn");
+
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", event => {
+        event.stopPropagation();
+        deletePlaylist(name);
+      });
+    }
 
     playlistMenu.appendChild(card);
   });
@@ -422,6 +449,32 @@ function createPlaylist() {
   updateUI(true);
 }
 
+function deletePlaylist(name) {
+
+  if (
+    name === "Favoris" ||
+    name === "Découvertes"
+  ) {
+    return;
+  }
+
+  const confirmDelete = confirm(
+    `Supprimer la playlist "${name}" ?`
+  );
+
+  if (!confirmDelete) {
+    return;
+  }
+
+  delete state.playlists[name];
+
+  if (state.currentPlaylist === name) {
+    state.currentPlaylist = "Découvertes";
+  }
+
+  updateUI(true);
+}
+
 function toggleFavorite(trackIndex) {
   const favorites = state.playlists["Favoris"].tracks;
 
@@ -504,17 +557,25 @@ async function removeTrackFromPlaylist(trackIndex) {
 async function playTrack(index) {
   const track = state.tracks[index];
 
-  if (!track) return;
+  if (!track) {
+    return;
+  }
 
   try {
-    // On met tout de suite l’interface sur la bonne musique
+    // Met l'interface directement sur la musique cliquée
     state.index = index;
     state.position = 0;
     state.playing = true;
     updateUI(true);
 
+    // Important : on envoie l'index Python de la musique
+    const backendIndex =
+      track.backendIndex !== undefined
+        ? track.backendIndex
+        : index;
+
     const result = await apiCall("/api/play", "POST", {
-      index: track.backendIndex
+      index: backendIndex
     });
 
     if (result.status) {
@@ -648,17 +709,24 @@ async function searchYoutube() {
   }
 }
 
-mobileMenuBtn.addEventListener("click", () => {
+mobileMenuBtn.addEventListener("click", event => {
+  event.stopPropagation();
   sidebar.classList.toggle("open");
+});
+
+document.addEventListener("click", event => {
+  const clickInsideSidebar = sidebar.contains(event.target);
+  const clickOnMenuButton = mobileMenuBtn.contains(event.target);
+
+  if (!clickInsideSidebar && !clickOnMenuButton) {
+    sidebar.classList.remove("open");
+  }
 });
 
 document.getElementById("createPlaylistBtn").addEventListener("click", () => {
   createPlaylist();
 });
 
-document.getElementById("heroPlayBtn").addEventListener("click", () => {
-  playPause();
-});
 
 document.getElementById("youtubeBtn").addEventListener("click", () => {
   searchYoutube();
@@ -758,10 +826,28 @@ searchInput.addEventListener("keydown", event => {
   }
 });
 
+document.addEventListener("keydown", event => {
+  const activeElement = document.activeElement;
+  const isWriting =
+    activeElement &&
+    (
+      activeElement.tagName === "INPUT" ||
+      activeElement.tagName === "TEXTAREA"
+    );
+
+  if (isWriting) {
+    return;
+  }
+
+  if (event.code === "Space") {
+    event.preventDefault();
+    playPause();
+  }
+});
+
+
 setInterval(() => {
   refreshStatusFromPython();
 }, 1000);
-
-updateUI(true);
 
 updateUI(true);

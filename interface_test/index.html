@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>L.A.S.E.R</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+       
+        <div>
+          <h1 class="logo">L.A.S.E.R</h1>
+          <p>Python Audio Player</p>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <button class="side-btn" id="loadBtn">📂 Bibliothèque locale</button>
+      </nav>
+
+      <div class="side-section">
+        <div class="section-title">
+          <span>Playlists</span>
+          <button id="createPlaylistBtn" class="small-plus">+</button>
+        </div>
+
+        <div id="playlistMenu" class="playlist-menu"></div>
+      </div>
+
+      
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenuBtn">☰</button>
+
+        <div class="search-box">
+          <span>🔍</span>
+          <input type="text" id="searchInput" placeholder="Rechercher un titre, un artiste..." />
+        </div>
+
+        <button class="top-action" id="youtubeBtn">YouTube</button>
+      </header>
+
+      <section class="hero">
+        <div class="hero-content">
+          <p class="hero-small">LECTEUR AUDIO MODERNE</p>
+          <h2>Bienvenue sur notre Projet L.A.S.E.R </h2>
+          <p class="hero-text">
+            Un lecteur de musique qui permet de lire des fichiers MP3 en local ou bien en le rechechant grâce à l'intégration YouTube Music.
+          </p>
+          <div class="hero-actions">
+            <button id="heroPlayBtn">▶ Lancer</button>
+          </div>
+        </div>
+        <div class="hero-cover" id="heroCover">♪</div>
+      </section>
+
+      <section class="content">
+        <div class="panel playlist-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Bibliothèque</p>
+              <h3 id="playlistTitle">Playlist locale</h3>
+            </div>
+            <span id="trackCount" class="badge">0 titre</span>
+          </div>
+          <div id="playlistContainer" class="playlist"></div>
+        </div>
+
+        <aside class="panel status-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Infos musique</h3>
+            </div>
+          </div>
+
+          <div class="large-cover" id="largeCover">♪</div>
+          <div id="statusBox" class="status-box"></div>
+
+          <div class="toggle-row">
+            <button id="shuffleBtn">🔀 Shuffle</button>
+            <button id="repeatBtn">🔄️ Repeat</button>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="player-bar">
+      <div class="now-playing">
+        <div class="cover" id="bottomCover">♪</div>
+        <div class="track-texts">
+          <div id="trackName" class="track-name">Aucune piste</div>
+          <div id="trackInfo" class="track-info">Prêt</div>
+        </div>
+      </div>
+
+      <div class="controls-area">
+        <div class="controls">
+          <button id="prevBtn" title="Précédent">⏮</button>
+          <button id="playPauseBtn" class="main-control" title="Play/Pause">▶</button>
+          <button id="stopBtn" title="Stop">⏹</button>
+          <button id="nextBtn" title="Suivant">⏭</button>
+        </div>
+
+        <div class="progress-row">
+          <span id="currentTime">0:00</span>
+          <input type="range" id="progressBar" min="0" max="100" value="0" />
+          <span id="durationTime">0:00</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

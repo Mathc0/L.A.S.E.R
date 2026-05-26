@@ -1,7 +1,9 @@
 import time
 import client_yt_music
 from player import MusicPlayer
+from db import DatabaseManager
 import os
+import getpass
 from mp3_tagger import tag_mp3_file
 from tkinter import Tk, filedialog
 # ==============================================================================
@@ -100,6 +102,49 @@ try:
     auto_tag_music_folder()
 except Exception as e:
     print(f"⚠️  Erreur lors du tagging automatique : {e}\n")
+
+
+def get_database_config():
+    return {
+        'host': os.getenv('LASER_DB_HOST', 'localhost'),
+        'user': os.getenv('LASER_DB_USER', 'root'),
+        'password': os.getenv('LASER_DB_PASSWORD', ''),
+        'database': os.getenv('LASER_DB_NAME', 'laser_db'),
+    }
+
+
+def init_database():
+    config = get_database_config()
+    if not config['password'] and not os.getenv('LASER_DB_PASSWORD'):
+        try:
+            config['password'] = getpass.getpass('Mot de passe MySQL (laisser vide si aucun) : ')
+        except Exception:
+            config['password'] = ''
+
+    try:
+        db = DatabaseManager(
+            host=config['host'],
+            user=config['user'],
+            password=config['password'],
+            database=config['database']
+        )
+        print(f"✅ Connecté à MySQL {config['host']} / base {config['database']}")
+        return db
+    except Exception as e:
+        print(f"⚠️  Impossible de se connecter à la base de données MySQL : {e}")
+        print("   Définissez LASER_DB_HOST, LASER_DB_USER, LASER_DB_PASSWORD, LASER_DB_NAME si besoin.")
+        return None
+
+
+def save_tracks_to_database(file_paths, db_manager):
+    if not db_manager:
+        return
+
+    for file_path in sorted(file_paths):
+        try:
+            db_manager.insert_track_from_file(file_path)
+        except Exception as e:
+            print(f"   ❌ Impossible d'enregistrer en base : {file_path} -> {e}")
 
 
 def show_music_progress(player: MusicPlayer):
@@ -344,7 +389,7 @@ Commandes disponibles :
             print("Commande inconnue. Tapez 'help' pour la liste des commandes.")
 
 
-def menu_local(player: MusicPlayer):
+def menu_local(player: MusicPlayer, db_manager=None):
     """
     Sous-menu de contrôle du player MP3 local.
     Offre le choix entre parcourir un dossier, des fichiers individuels, ou le dossier par défaut.
@@ -433,6 +478,13 @@ def menu_local(player: MusicPlayer):
                 print(f"\n✅ Tagging terminé : {success_count}/{len(files_to_load)} fichier(s) mis à jour.\n")
         except Exception as e:
             print(f"⚠️  Erreur lors du tagging automatique : {e}\n")
+
+        # Enregistrement des musiques dans la base MySQL
+        try:
+            if db_manager:
+                save_tracks_to_database(player._playlist, db_manager)
+        except Exception as e:
+            print(f"⚠️  Erreur lors de l'enregistrement en base : {e}")
         
     except FileNotFoundError:
         print(f"⚠️  Le dossier sélectionné n'existe pas.")
@@ -508,6 +560,7 @@ def main():
     """
     # Initialisation du player local (sans charger de dossier pour l'instant)
     player = MusicPlayer()
+    db_manager = init_database()
 
     print("╔══════════════════════════════════════════════╗")
     print("║  Bienvenue dans L.A.S.E.R                    ║")
@@ -528,7 +581,7 @@ def main():
             break
 
         if choice in ("1", "local"):
-            menu_local(player)
+            menu_local(player, db_manager)
 
         elif choice in ("2", "youtube"):
             menu_youtube()
@@ -542,6 +595,9 @@ def main():
 
         else:
             print("Choix invalide, veuillez réessayer.\n")
+
+    if db_manager:
+        db_manager.close()
 
 
 main()

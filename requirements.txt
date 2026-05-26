@@ -3,3 +3,4 @@ Pillow
 python-vlc
 static-ffmpeg
 musicbrainzngs
+eyed3

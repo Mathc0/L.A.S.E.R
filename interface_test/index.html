@@ -1,123 +1,250 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <!-- Encodage UTF-8 pour supporter les caractères spéciaux -->
   <meta charset="UTF-8" />
+
+  <!-- Permet un affichage responsive sur mobile -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Titre affiché dans l’onglet du navigateur -->
   <title>L.A.S.E.R</title>
+
+  <!-- Préconnexion aux serveurs Google Fonts pour améliorer les performances -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Importation de la police Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Liaison avec le fichier CSS -->
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
+
+  <!-- Conteneur principal de l'application -->
   <div class="app">
+
+    <!-- Barre latérale -->
     <aside class="sidebar" id="sidebar">
+
+      <!-- Logo et présentation -->
       <div class="brand">
-       
         <div>
           <h1 class="logo">L.A.S.E.R</h1>
           <p>Python Audio Player</p>
         </div>
       </div>
 
+      <!-- Navigation principale -->
       <nav class="side-nav">
-        <button class="side-btn" id="loadBtn">📂 Bibliothèque locale</button>
+
+        <!-- Bouton pour charger des musiques locales -->
+        <button class="side-btn" id="loadBtn">
+          📂 Bibliothèque locale
+        </button>
+
       </nav>
 
+      <!-- Section playlists -->
       <div class="side-section">
+
+        <!-- Titre + bouton de création -->
         <div class="section-title">
           <span>Playlists</span>
+
+          <!-- Bouton pour créer une playlist -->
           <button id="createPlaylistBtn" class="small-plus">+</button>
         </div>
 
+        <!-- Conteneur des playlists -->
         <div id="playlistMenu" class="playlist-menu"></div>
       </div>
 
-      
     </aside>
 
+    <!-- Contenu principal -->
     <main class="main">
+
+      <!-- Barre supérieure -->
       <header class="topbar">
+
+        <!-- Bouton menu mobile -->
         <button class="mobile-menu" id="mobileMenuBtn">☰</button>
 
+        <!-- Barre de recherche -->
         <div class="search-box">
           <span>🔍</span>
-          <input type="text" id="searchInput" placeholder="Rechercher un titre, un artiste..." />
+
+          <!-- Champ de recherche -->
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Rechercher un titre, un artiste..." 
+          />
         </div>
 
-        <button class="top-action" id="youtubeBtn">YouTube</button>
+        <!-- Bouton YouTube -->
+        <button class="top-action" id="youtubeBtn">
+          YouTube
+        </button>
+
       </header>
 
+      <!-- Section principale de bienvenue -->
       <section class="hero">
+
         <div class="hero-content">
+
+          <!-- Petit texte descriptif -->
           <p class="hero-small">LECTEUR AUDIO MODERNE</p>
-          <h2>Bienvenue sur notre Projet L.A.S.E.R </h2>
+
+          <!-- Titre principal -->
+          <h2>Bienvenue sur notre Projet L.A.S.E.R</h2>
+
+          <!-- Description du projet -->
           <p class="hero-text">
-            Un lecteur de musique qui permet de lire des fichiers MP3 en local ou bien en le rechechant grâce à l'intégration YouTube Music.
+            Un lecteur de musique qui permet de lire des fichiers MP3 
+            en local ou bien en le recherchant grâce à l'intégration 
+            YouTube Music.
           </p>
+
+          <!-- Bouton de lancement -->
           <div class="hero-actions">
             <button id="heroPlayBtn">▶ Lancer</button>
           </div>
+
         </div>
+
+        <!-- Illustration / cover -->
         <div class="hero-cover" id="heroCover">♪</div>
+
       </section>
 
+      <!-- Zone principale du contenu -->
       <section class="content">
+
+        <!-- Panneau playlist -->
         <div class="panel playlist-panel">
+
+          <!-- En-tête -->
           <div class="panel-header">
             <div>
               <p class="eyebrow">Bibliothèque</p>
+
+              <!-- Nom de la playlist -->
               <h3 id="playlistTitle">Playlist locale</h3>
             </div>
+
+            <!-- Nombre de titres -->
             <span id="trackCount" class="badge">0 titre</span>
           </div>
+
+          <!-- Conteneur des musiques -->
           <div id="playlistContainer" class="playlist"></div>
         </div>
 
+        <!-- Panneau informations musique -->
         <aside class="panel status-panel">
+
+          <!-- En-tête -->
           <div class="panel-header">
             <div>
               <h3>Infos musique</h3>
             </div>
           </div>
 
+          <!-- Grande couverture de la musique -->
           <div class="large-cover" id="largeCover">♪</div>
+
+          <!-- Zone des informations -->
           <div id="statusBox" class="status-box"></div>
 
+          <!-- Boutons shuffle et repeat -->
           <div class="toggle-row">
+
+            <!-- Lecture aléatoire -->
             <button id="shuffleBtn">🔀 Shuffle</button>
+
+            <!-- Répéter la musique -->
             <button id="repeatBtn">🔄️ Repeat</button>
+
           </div>
         </aside>
       </section>
     </main>
 
+    <!-- Barre du lecteur audio -->
     <footer class="player-bar">
+
+      <!-- Informations sur la musique en cours -->
       <div class="now-playing">
+
+        <!-- Mini cover -->
         <div class="cover" id="bottomCover">♪</div>
+
+        <!-- Textes musique -->
         <div class="track-texts">
-          <div id="trackName" class="track-name">Aucune piste</div>
-          <div id="trackInfo" class="track-info">Prêt</div>
+
+          <!-- Nom de la musique -->
+          <div id="trackName" class="track-name">
+            Aucune piste
+          </div>
+
+          <!-- Informations supplémentaires -->
+          <div id="trackInfo" class="track-info">
+            Prêt
+          </div>
         </div>
       </div>
 
+      <!-- Zone contrôles -->
       <div class="controls-area">
+
+        <!-- Boutons du lecteur -->
         <div class="controls">
+
+          <!-- Musique précédente -->
           <button id="prevBtn" title="Précédent">⏮</button>
-          <button id="playPauseBtn" class="main-control" title="Play/Pause">▶</button>
+
+          <!-- Lecture / pause -->
+          <button id="playPauseBtn" class="main-control" title="Play/Pause">
+            ▶
+          </button>
+
+          <!-- Stop -->
           <button id="stopBtn" title="Stop">⏹</button>
+
+          <!-- Musique suivante -->
           <button id="nextBtn" title="Suivant">⏭</button>
+
         </div>
 
+        <!-- Barre de progression -->
         <div class="progress-row">
+
+          <!-- Temps actuel -->
           <span id="currentTime">0:00</span>
-          <input type="range" id="progressBar" min="0" max="100" value="0" />
+
+          <!-- Barre de progression audio -->
+          <input 
+            type="range" 
+            id="progressBar" 
+            min="0" 
+            max="100" 
+            value="0" 
+          />
+
+          <!-- Durée totale -->
           <span id="durationTime">0:00</span>
         </div>
       </div>
     </footer>
   </div>
 
+  <!-- Importation du script JavaScript -->
   <script src="script.js"></script>
+
 </body>
 </html>

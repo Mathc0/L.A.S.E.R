@@ -1,9 +1,7 @@
-yt-dlp
-Pillow
-python-vlc
-static-ffmpeg
-musicbrainzngs
-eyed3
 Flask
 Flask-CORS
-requests
+yt-dlp
+static-ffmpeg
+python-vlc
+eyed3
+musicbrainzngs

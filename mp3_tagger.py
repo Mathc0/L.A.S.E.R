@@ -43,6 +43,10 @@ def parse_filename_metadata(filename: str) -> Tuple[str, str, str]:
 def search_release(artist: str, album: str):
     """
     Recherche un album dans MusicBrainz par artiste et titre de release.
+
+    :param artist: nom de l'artiste (str), ex. "Muse"
+    :param album:  titre de l'album (str), ex. "Absolution"
+    :return: premier résultat MusicBrainz (dict) ou None si aucun résultat
     """
     try:
         result = mb.search_releases(artist=artist, release=album, limit=5)
@@ -54,7 +58,11 @@ def search_release(artist: str, album: str):
 
 def search_recording(artist: str, title: str):
     """
-    Recherche un enregistrement dans MusicBrainz par artiste et titre.
+    Recherche un enregistrement dans MusicBrainz par artiste et titre de chanson.
+
+    :param artist: nom de l'artiste (str), ex. "Muse"
+    :param title:  titre de la chanson (str), ex. "Time Is Running Out"
+    :return: premier enregistrement MusicBrainz (dict) ou None si aucun résultat
     """
     try:
         result = mb.search_recordings(artist=artist, recording=title, limit=5)
@@ -65,6 +73,13 @@ def search_recording(artist: str, title: str):
         return None
 
 def safe_artist_name(artist_credit) -> str:
+    """
+    Extrait le nom de l'artiste depuis un champ 'artist-credit' MusicBrainz.
+
+    :param artist_credit: liste de crédits artiste retournée par l'API MusicBrainz
+                          (list[dict] | list[str] | None)
+    :return: nom de l'artiste principal (str), ou chaîne vide si non trouvé
+    """
     if not artist_credit:
         return ""
     first = artist_credit[0]

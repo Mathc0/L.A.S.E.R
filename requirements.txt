@@ -4,3 +4,6 @@ python-vlc
 static-ffmpeg
 musicbrainzngs
 eyed3
+Flask
+Flask-CORS
+requests

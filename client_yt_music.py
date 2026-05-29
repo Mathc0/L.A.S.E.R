@@ -10,6 +10,7 @@ import contextlib
 import io
 import os
 import random
+import re
 import urllib.parse
 import time
 import threading
@@ -18,6 +19,11 @@ vlc_path = os.path.join(os.getcwd(), "vlc_files")
 os.environ["PATH"] += os.pathsep + vlc_path
 
 import vlc
+
+from datetime import datetime
+from db import SessionLocal
+from models import Track
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class YouTubeMusicClient:
@@ -211,6 +217,89 @@ class YouTubeMusicClient:
             track["url"] = self._resolve_audio_url(track["video_url"])
         self._play_url(track["url"])
 
+    def _record_play_youtube(self):
+        if not self._playlist:
+            return
+
+        track = self._playlist[self._current_index]
+        path = track.get("webpage_url") or track.get("url")
+        if not path:
+            return
+
+        session = SessionLocal()
+        try:
+            db_track = session.query(Track).filter_by(path=path).first()
+            
+            # Préparer les métadonnées
+            title = track.get("title", track.get("raw_title", "Unknown Title"))
+            artist = track.get("artist", "Unknown Artist")
+            album = track.get("channel", "YouTube")
+            duration = track.get("duration", 0)
+            
+            if not db_track:
+                db_track = Track(
+                    path=path,
+                    title=title,
+                    artist=artist,
+                    album=album,
+                    duration=duration,
+                    scanned=True,  # Marqué comme scanné car vient de YouTube
+                    tagged=True,   # Marqué comme taggé car on a les métadonnées de YouTube
+                    play_count=1,
+                    last_played=datetime.utcnow(),
+                )
+                session.add(db_track)
+            else:
+                # Mettre à jour les métadonnées si vides
+                if not db_track.title or db_track.title == "Unknown":
+                    db_track.title = title
+                if not db_track.artist or db_track.artist == "YouTube":
+                    db_track.artist = artist
+                if not db_track.album or db_track.album == "YouTube":
+                    db_track.album = album
+                if not db_track.duration:
+                    db_track.duration = duration
+                
+                db_track.play_count = (db_track.play_count or 0) + 1
+                db_track.last_played = datetime.utcnow()
+                db_track.scanned = True
+                db_track.tagged = True
+            
+            session.commit()
+        except SQLAlchemyError as e:
+            session.rollback()
+            print(f"⚠️  Erreur DB lors de l'enregistrement YouTube : {e}")
+        finally:
+            session.close()
+
+    def _extract_artist_from_title(self, title: str) -> tuple:
+        """
+        Essaie d'extraire l'artiste et le titre de la musique depuis le titre YouTube.
+        Formats courants : "Artist - Title", "Artist — Title", etc.
+        
+        :param title: Titre brut depuis YouTube
+        :return: tuple (artist, cleaned_title)
+        """
+        # Patterns courants pour les séparateurs
+        patterns = [
+            r'^(.+?)\s*[-–—]\s*(.+)$',  # "Artist - Title" or similar
+            r'^(.+?)\s*\|\s*(.+)$',      # "Artist | Title"
+            r'^(.+?)\s*:\s*(.+)$',       # "Artist: Title"
+        ]
+        
+        for pattern in patterns:
+            match = re.match(pattern, title)
+            if match:
+                artist, track_title = match.groups()
+                artist = artist.strip()
+                track_title = track_title.strip()
+                # S'assurer qu'on a un titre valide (pas trop court)
+                if len(artist) > 1 and len(track_title) > 1:
+                    return artist, track_title
+        
+        # Si pas de pattern trouvé, retourner le titre complet comme titre
+        return None, title
+
     def _fetch_info(self, query: str) -> dict:
         """Recherche une piste sur YouTube via yt-dlp et retourne ses métadonnées + URL audio.
 
@@ -235,12 +324,22 @@ class YouTubeMusicClient:
                 best_format = max(audio_formats, key=lambda f: f.get("abr") or f.get("tbr") or f.get("quality") or 0)
                 audio_url = best_format["url"]
 
+            # Extraire les métadonnées correctes depuis le titre YouTube
+            raw_title = entry.get("title", "Titre inconnu")
+            extracted_artist, clean_title = self._extract_artist_from_title(raw_title)
+            
+            # Utiliser l'artiste extrait du titre s'il existe, sinon le channel
+            artist = extracted_artist or entry.get("channel", entry.get("uploader", "Unknown Artist"))
+
             return {
-                "title": entry.get("title", "Titre inconnu"),
-                "artist": entry.get("uploader", "YouTube"),
+                "title": clean_title,
+                "artist": artist,
                 "url": audio_url,
                 "cover": entry.get("thumbnail", ""),
                 "webpage_url": entry.get("webpage_url", ""),
+                "raw_title": raw_title,
+                "channel": entry.get("channel", entry.get("uploader", "")),
+                "duration": entry.get("duration", 0),
             }
 
     def download_audio(self, query, output_path="%(title)s.%(ext)s"):
@@ -317,6 +416,10 @@ class YouTubeMusicClient:
             print(f"[YouTube] Warning volume : {e}")
 
         self._player.play()
+        try:
+            self._record_play_youtube()
+        except Exception:
+            pass
 
     def play(self, index=None):
         """Démarre ou reprend la lecture.
@@ -528,6 +631,42 @@ class YouTubeMusicClient:
             "duration": self.get_duration(),
             "playlist": self._playlist,
         }
+
+    def sync_youtube_metadata(self):
+        """
+        Synchronise les métadonnées de toutes les musiques YouTube de la DB.
+        Utilise la fonction tag_youtube_track pour mettre à jour les entrées.
+        
+        :return: tuple (nombre_synchronisé, nombre_total)
+        """
+        try:
+            from mp3_tagger import tag_youtube_track
+        except ImportError:
+            print("❌ Impossible d'importer tag_youtube_track")
+            return 0, 0
+        
+        session = SessionLocal()
+        try:
+            # Chercher tous les tracks qui viennent de YouTube (chemin contient webpage_url)
+            all_tracks = session.query(Track).all()
+            youtube_tracks = [t for t in all_tracks if t.path and 'youtube.com' in t.path]
+            
+            synced = 0
+            for track in youtube_tracks:
+                try:
+                    if tag_youtube_track(
+                        path=track.path,
+                        title=track.title or "Unknown",
+                        artist=track.artist or "Unknown Artist",
+                        album=track.album or "YouTube"
+                    ):
+                        synced += 1
+                except Exception as e:
+                    print(f"❌ Erreur lors de la synchronisation de {track.title} : {e}")
+            
+            return synced, len(youtube_tracks)
+        finally:
+            session.close()
 
     def _auto_add_related_track(self):
         """Cherche et ajoute automatiquement une piste liée à celle en cours (autoplay).

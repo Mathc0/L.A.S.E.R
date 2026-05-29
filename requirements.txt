@@ -5,3 +5,10 @@ static-ffmpeg
 python-vlc
 eyed3
 musicbrainzngs
+eyed3
+Flask
+Flask-CORS
+requests
+SQLAlchemy>=1.4
+PyMySQL
+python-dotenv

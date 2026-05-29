@@ -3,6 +3,12 @@ import os
 import re
 import musicbrainzngs
 from typing import Tuple
+from datetime import datetime
+
+# Database
+from db import SessionLocal
+from models import Track
+from sqlalchemy.exc import SQLAlchemyError
 
 # Initialize the MusicBrainz client with error handling
 try:
@@ -95,16 +101,43 @@ def tag_mp3_file(file_path: str) -> bool:
     if not mb:
         print(f"⚠️  Client MusicBrainz non disponible pour {os.path.basename(file_path)}")
         return False
-    
+
+    session = SessionLocal()
+    track = None
     try:
+        # Si le fichier a déjà été scanné, on saute pour éviter les doublons
+        track = session.query(Track).filter_by(path=file_path).first()
+        if track and track.scanned:
+            print(f"   ℹ️  {os.path.basename(file_path)} déjà scanné, saut du tagging.")
+            return False
+
         audiofile = eyed3.load(file_path)
         if audiofile is None:
             print(f"⚠️  Impossible de charger {os.path.basename(file_path)}")
+            # enregistrer comme scanné même si on ne peut pas charger
+            if track is None:
+                try:
+                    track = Track(path=file_path, title=os.path.splitext(os.path.basename(file_path))[0], scanned=True, tagged=False)
+                    session.add(track)
+                    session.commit()
+                except SQLAlchemyError:
+                    session.rollback()
             return False
         
         tag = audiofile.tag
         if tag is None:
             print(f"⚠️  Pas de tag MP3 trouvé pour {os.path.basename(file_path)}")
+            # marquer comme scanné (mais non taggé)
+            try:
+                if track is None:
+                    track = Track(path=file_path, title=os.path.splitext(os.path.basename(file_path))[0], scanned=True, tagged=False)
+                    session.add(track)
+                else:
+                    track.scanned = True
+                    track.tagged = False
+                session.commit()
+            except SQLAlchemyError:
+                session.rollback()
             return False
         
         current_title = tag.title or ""
@@ -181,7 +214,103 @@ def tag_mp3_file(file_path: str) -> bool:
         print(f"      • Titre: {final_title}")
         print(f"      • Artiste: {artist_name}")
         print(f"      • Album: {album_name}")
+        # Mettre à jour / créer l'enregistrement en base
+        try:
+            if track is None:
+                track = Track(path=file_path)
+                session.add(track)
+            track.title = final_title
+            track.artist = artist_name
+            track.album = album_name
+            track.scanned = True
+            track.tagged = True
+            session.commit()
+        except SQLAlchemyError:
+            session.rollback()
+
         return True
     except Exception as e:
+        # En cas d'erreur imprévue, s'assurer qu'on marque le fichier comme scanné
+        try:
+            if track is None:
+                track = Track(path=file_path, title=current_title or os.path.splitext(os.path.basename(file_path))[0], artist=current_artist, album=current_album, scanned=True, tagged=False)
+                session.add(track)
+            else:
+                track.scanned = True
+                track.tagged = False
+            session.commit()
+        except Exception:
+            try:
+                session.rollback()
+            except Exception:
+                pass
         print(f"   ❌ Erreur lors du tagging de {os.path.basename(file_path)} : {e}")
         return False
+    finally:
+        session.close()
+
+
+def tag_youtube_track(path: str, title: str, artist: str, album: str = None) -> bool:
+    """
+    Met à jour les métadonnées d'une musique YouTube dans la base de données.
+    
+    Cette fonction met à jour directement la DB pour les musiques YouTube
+    qui ne sont pas des fichiers locaux mais des liens de streaming.
+    
+    :param path: URL ou chemin unique de la musique YouTube
+    :param title: Titre de la musique
+    :param artist: Artiste de la musique
+    :param album: Album ou channel (optionnel)
+    :return: True si succès, False sinon
+    """
+    session = SessionLocal()
+    try:
+        # Chercher ou créer l'entrée
+        track = session.query(Track).filter_by(path=path).first()
+        
+        if not track:
+            track = Track(
+                path=path,
+                title=title,
+                artist=artist,
+                album=album or "YouTube",
+                scanned=True,
+                tagged=True,
+                play_count=0,
+            )
+            session.add(track)
+            print(f"   ✅ Nouvelle entrée créée : {title} par {artist}")
+        else:
+            # Mettre à jour si les données manquent
+            updated = False
+            if not track.title or track.title == "Unknown":
+                track.title = title
+                updated = True
+            if not track.artist or track.artist == "Unknown Artist":
+                track.artist = artist
+                updated = True
+            if not track.album or track.album == "YouTube":
+                track.album = album or "YouTube"
+                updated = True
+            
+            track.scanned = True
+            track.tagged = True
+            
+            if updated:
+                print(f"   ✅ Métadonnées mises à jour : {title} par {artist}")
+            else:
+                print(f"   ℹ️  {title} déjà taggé correctement")
+        
+        session.commit()
+        return True
+        
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"   ❌ Erreur DB lors du tagging YouTube : {e}")
+        return False
+    except Exception as e:
+        session.rollback()
+        print(f"   ❌ Erreur lors du tagging YouTube : {e}")
+        return False
+    finally:
+        session.close()

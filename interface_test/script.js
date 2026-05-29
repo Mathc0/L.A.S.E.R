@@ -47,6 +47,11 @@ let state = {
     "Découvertes": {
       icon: "🗺️",
       tracks: []
+    },
+
+    "Bibliothèque locale": {
+      icon: "📂",
+      tracks: []
     }
   }
 };
@@ -160,6 +165,58 @@ function addOrUpdateYoutubeTrack(track, backendIndex) {
   return newIndex;
 }
 
+function addOrUpdateLocalTrack(track, backendIndex) {
+  const existingIndex = state.tracks.findIndex(item => item.source === "local" && item.backendIndex === backendIndex);
+
+  if (existingIndex !== -1) {
+    state.tracks[existingIndex] = {
+      ...state.tracks[existingIndex],
+      title: track.title || state.tracks[existingIndex].title,
+      artist: track.artist || state.tracks[existingIndex].artist,
+      album: track.album || state.tracks[existingIndex].album,
+      duration: track.duration || state.tracks[existingIndex].duration,
+      source: "local",
+      backendIndex
+    };
+    return existingIndex;
+  }
+
+  const newTrack = {
+    title: track.title || "Titre inconnu",
+    artist: track.artist || "Local",
+    album: track.album || "",
+    duration: track.duration || 0,
+    cover: track.cover || "",
+    source: "local",
+    backendIndex
+  };
+
+  state.tracks.push(newTrack);
+  return state.tracks.length - 1;
+}
+
+async function loadLocalLibrary() {
+  try {
+    const result = await apiCall("/api/library");
+
+    state.tracks = state.tracks.filter(track => track.source !== "local");
+    state.playlists["Bibliothèque locale"].tracks = [];
+
+    result.tracks.forEach(track => {
+      const trackIndex = addOrUpdateLocalTrack(track, track.backendIndex);
+      if (!state.playlists["Bibliothèque locale"].tracks.includes(trackIndex)) {
+        state.playlists["Bibliothèque locale"].tracks.push(trackIndex);
+      }
+    });
+
+    state.currentPlaylist = "Bibliothèque locale";
+    updateUI(true);
+  } catch (error) {
+    console.error("Impossible de charger la bibliothèque locale :", error.message);
+    alert("Impossible de charger la bibliothèque locale.");
+  }
+}
+
 function syncStatus(status) {
   if (!status) return;
 
@@ -169,13 +226,35 @@ function syncStatus(status) {
   state.shuffle = Boolean(status.shuffle);
   state.repeat = Boolean(status.repeat);
 
+  const backendIndex = Number(status.index || 1) - 1;
+
+  if (status.mode === "local") {
+    state.currentPlaylist = "Bibliothèque locale";
+    const currentIndex = state.tracks.findIndex(
+      track => track.source === "local" && track.backendIndex === backendIndex
+    );
+
+    if (currentIndex !== -1) {
+      state.index = currentIndex;
+      if (status.duration !== undefined) {
+        state.tracks[currentIndex].duration = Number(status.duration || 0);
+      }
+      if (status.track) {
+        state.tracks[currentIndex].title = status.track;
+      }
+      if (status.artist) {
+        state.tracks[currentIndex].artist = status.artist;
+      }
+    }
+
+    return;
+  }
+
   if (Array.isArray(status.playlist)) {
     status.playlist.forEach((track, index) => {
       addOrUpdateYoutubeTrack(track, index);
     });
   }
-
-  const backendIndex = Number(status.index || 1) - 1;
 
   const currentIndex = state.tracks.findIndex(
     track => track.source === "youtube" && track.backendIndex === backendIndex
@@ -562,21 +641,26 @@ async function playTrack(index) {
   }
 
   try {
-    // Met l'interface directement sur la musique cliquée
     state.index = index;
     state.position = 0;
     state.playing = true;
     updateUI(true);
 
-    // Important : on envoie l'index Python de la musique
     const backendIndex =
       track.backendIndex !== undefined
         ? track.backendIndex
         : index;
 
-    const result = await apiCall("/api/play", "POST", {
-      index: backendIndex
-    });
+    let result;
+    if (track.source === "local") {
+      result = await apiCall("/api/local_play", "POST", {
+        index: backendIndex
+      });
+    } else {
+      result = await apiCall("/api/play", "POST", {
+        index: backendIndex
+      });
+    }
 
     if (result.status) {
       syncStatus(result.status);
@@ -728,6 +812,20 @@ document.getElementById("createPlaylistBtn").addEventListener("click", () => {
 });
 
 
+document.getElementById("loadBtn").addEventListener("click", () => {
+  loadLocalLibrary();
+});
+
+
+document.getElementById("heroPlayBtn").addEventListener("click", async () => {
+  await loadLocalLibrary();
+  const localTracks = state.playlists["Bibliothèque locale"].tracks;
+  if (localTracks.length > 0) {
+    playTrack(localTracks[0]);
+  }
+});
+
+
 document.getElementById("youtubeBtn").addEventListener("click", () => {
   searchYoutube();
 });
@@ -850,4 +948,5 @@ setInterval(() => {
   refreshStatusFromPython();
 }, 1000);
 
+loadLocalLibrary();
 updateUI(true);

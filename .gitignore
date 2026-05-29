@@ -2,6 +2,9 @@
 *.mp3
 # La base de données
 *.db
+# Dossier local pour la base SQLite (créé automatiquement)
+/data/
+laser.db
 # Les fichiers de cache
 __pycache__/
 *.pyc

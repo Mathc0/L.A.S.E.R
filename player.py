@@ -7,6 +7,12 @@ os.environ['PATH'] += os.pathsep + vlc_path
 import vlc
 
 import time
+from datetime import datetime
+
+# Database
+from db import SessionLocal
+from models import Track
+from sqlalchemy.exc import SQLAlchemyError
 
 # ==============================================================================
 # PLAYER.PY — Bibliothèque de lecture MP3 pour le projet L.A.S.E.R
@@ -57,12 +63,13 @@ class MusicPlayer:
         self._volume = 80            # volume par défaut (0-100)
         self._shuffle = False        # mode aléatoire désactivé par défaut
         self._repeat = False         # mode répétition désactivé par défaut
+        self._music_folder = os.path.abspath(music_folder) if music_folder else None
 
         # Note: Volume setting moved to after media loading to avoid initialization issues
 
         # --- Chargement automatique si un dossier est fourni ---
         if music_folder:
-            self.load_folder(music_folder)
+            self.load_folder(music_folder, recursive=True)
 
     # ==========================================================================
     # CHARGEMENT DE LA PLAYLIST
@@ -84,27 +91,32 @@ class MusicPlayer:
         self._playlist = []
         self._media_list = self._instance.media_list_new()
 
-        # Collecte tous les fichiers MP3 (récursivement si demandé)
-        mp3_files = []
+        # Collecte tous les fichiers audio pris en charge (récursivement si demandé)
+        audio_exts = (".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg")
+        audio_files = []
         if recursive:
             # Cherche dans tous les sous-dossiers
             for root, dirs, files in os.walk(folder_path):
                 for filename in sorted(files):
-                    if filename.lower().endswith(".mp3"):
+                    if filename.lower().endswith(audio_exts):
                         full_path = os.path.join(root, filename)
-                        mp3_files.append(full_path)
+                        audio_files.append(full_path)
         else:
             # Cherche seulement dans le dossier principal
             for filename in sorted(os.listdir(folder_path)):
-                if filename.lower().endswith(".mp3"):
+                if filename.lower().endswith(audio_exts):
                     full_path = os.path.join(folder_path, filename)
-                    mp3_files.append(full_path)
+                    audio_files.append(full_path)
 
         # Ajoute tous les fichiers à la playlist et à VLC
-        for full_path in mp3_files:
+        for full_path in audio_files:
             self._playlist.append(full_path)
             media = self._instance.media_new(full_path)
             self._media_list.add_media(media)
+            try:
+                self._ensure_db_record(full_path)
+            except Exception:
+                pass
 
         # Associe la nouvelle liste VLC au player
         self._list_player.set_media_list(self._media_list)
@@ -117,6 +129,53 @@ class MusicPlayer:
         self._current_index = 0
 
         return len(self._playlist)
+
+    def _extract_path_metadata(self, path: str):
+        title = os.path.splitext(os.path.basename(path))[0]
+        artist = ""
+        album = ""
+        if self._music_folder:
+            try:
+                rel_path = os.path.relpath(path, self._music_folder)
+                parts = rel_path.split(os.sep)
+                if len(parts) >= 3:
+                    artist = parts[0]
+                    album = parts[1]
+                elif len(parts) == 2:
+                    artist = parts[0]
+            except Exception:
+                pass
+        return title, artist, album
+
+    def _ensure_db_record(self, path: str):
+        title, artist, album = self._extract_path_metadata(path)
+        session = SessionLocal()
+        try:
+            track = session.query(Track).filter_by(path=path).first()
+            if not track:
+                track = Track(
+                    path=path,
+                    title=title,
+                    artist=artist,
+                    album=album,
+                    scanned=False,
+                    tagged=False,
+                    play_count=0,
+                    last_played=None,
+                )
+                session.add(track)
+            else:
+                if not track.title:
+                    track.title = title
+                if not track.artist and artist:
+                    track.artist = artist
+                if not track.album and album:
+                    track.album = album
+            session.commit()
+        except SQLAlchemyError:
+            session.rollback()
+        finally:
+            session.close()
 
     def add_track(self, file_path: str):
         """
@@ -155,9 +214,18 @@ class MusicPlayer:
             self._current_index = index
             # Navigue directement à la piste demandée dans la liste VLC
             self._list_player.play_item_at_index(self._current_index)
+            # Enregistrer la lecture en base
+            try:
+                self._record_play()
+            except Exception:
+                pass
         else:
             # Reprend la lecture (ou démarre depuis le début si rien n'est en cours)
             self._list_player.play()
+            try:
+                self._record_play()
+            except Exception:
+                pass
 
     def pause(self):
         """
@@ -195,6 +263,10 @@ class MusicPlayer:
             self._current_index = (self._current_index + 1) % len(self._playlist)
 
         self._list_player.play_item_at_index(self._current_index)
+        try:
+            self._record_play()
+        except Exception:
+            pass
 
     def previous_track(self):
         """
@@ -206,6 +278,50 @@ class MusicPlayer:
 
         self._current_index = (self._current_index - 1) % len(self._playlist)
         self._list_player.play_item_at_index(self._current_index)
+        try:
+            self._record_play()
+        except Exception:
+            pass
+
+    def _record_play(self):
+        """
+        Met à jour les statistiques de lecture en base pour la piste courante.
+        Incrémente `play_count` et met à jour `last_played`.
+        """
+        if not self._playlist:
+            return
+
+        path = self._playlist[self._current_index]
+        session = SessionLocal()
+        try:
+            db_track = session.query(Track).filter_by(path=path).first()
+            title, artist, album = self._extract_path_metadata(path)
+            if not db_track:
+                db_track = Track(
+                    path=path,
+                    title=title,
+                    artist=artist,
+                    album=album,
+                    scanned=False,
+                    tagged=False,
+                    play_count=1,
+                    last_played=datetime.utcnow(),
+                )
+                session.add(db_track)
+            else:
+                if not db_track.title:
+                    db_track.title = title
+                if not db_track.artist and artist:
+                    db_track.artist = artist
+                if not db_track.album and album:
+                    db_track.album = album
+                db_track.play_count = (db_track.play_count or 0) + 1
+                db_track.last_played = datetime.utcnow()
+            session.commit()
+        except SQLAlchemyError:
+            session.rollback()
+        finally:
+            session.close()
 
     # ==========================================================================
     # CONTRÔLE DU VOLUME

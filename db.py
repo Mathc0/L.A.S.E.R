@@ -12,7 +12,15 @@ load_dotenv()
 # MySQL example: mysql+pymysql://user:pass@host:3306/db
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    DATABASE_URL = f"sqlite:///./laser.db"
+    # Utiliser un dossier `data/` pour stocker la base locale et l'ignorer dans Git
+    data_dir = os.path.join(os.getcwd(), "data")
+    try:
+        os.makedirs(data_dir, exist_ok=True)
+    except Exception:
+        # Si on ne peut pas créer le dossier, fallback sur le fichier à la racine
+        DATABASE_URL = f"sqlite:///./laser.db"
+    else:
+        DATABASE_URL = f"sqlite:///./data/laser.db"
 
 # Pour SQLite, fournir connect_args requis
 if DATABASE_URL.startswith("sqlite"):

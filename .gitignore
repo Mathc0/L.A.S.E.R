@@ -1,5 +1,10 @@
 # Les musiques téléchargées
 *.mp3
+*.wav
+*.ogg
+*.flac
+*.m4a
+*.mid
 # La base de données
 *.db
 # Dossier local pour la base SQLite (créé automatiquement)

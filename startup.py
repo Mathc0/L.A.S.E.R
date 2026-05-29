@@ -12,6 +12,10 @@ import webbrowser
 import threading
 from app import app
 from player import MusicPlayer
+try:
+    from db import init_db
+except Exception:
+    init_db = None
 
 # Configuration
 HOST = "127.0.0.1"
@@ -53,6 +57,14 @@ def main():
     print("╚════════════════════════════════════════════════════════╝")
     print("=" * 60)
     
+    # Initialiser la base de données (si configurée)
+    if init_db:
+        try:
+            init_db()
+            print("✅ Base de données initialisée")
+        except Exception as e:
+            print(f"⚠️  Échec initialisation DB : {e}")
+
     # Initialiser le lecteur
     player = init_music_player()
     

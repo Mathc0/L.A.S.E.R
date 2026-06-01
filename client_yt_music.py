@@ -15,7 +15,8 @@ import urllib.parse
 import time
 import threading
 
-vlc_path = os.path.join(os.getcwd(), "vlc_files")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+vlc_path = os.path.join(BASE_DIR, "vlc_files")
 os.environ["PATH"] += os.pathsep + vlc_path
 
 import vlc

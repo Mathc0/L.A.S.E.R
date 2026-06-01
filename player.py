@@ -1,10 +1,40 @@
 import os
 import platform
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # --- Configuration du chemin vers les fichiers VLC locaux ---
-vlc_path = os.path.join(os.getcwd(), "vlc_files")
+vlc_path = os.path.join(BASE_DIR, "vlc_files")
 os.environ['PATH'] += os.pathsep + vlc_path
 import vlc
+
+AUDIO_EXTS = (".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg")
+
+
+def is_audio_file(path: str) -> bool:
+    """Retourne True si le fichier correspond à un format audio pris en charge."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in AUDIO_EXTS:
+        return True
+
+    try:
+        with open(path, "rb") as f:
+            header = f.read(16)
+    except Exception:
+        return False
+
+    if header.startswith(b"ID3"):
+        return True
+    if len(header) >= 2 and header[0] == 0xFF and (header[1] & 0xF6) == 0xF0:
+        return True
+    if header.startswith(b"fLaC"):
+        return True
+    if header.startswith(b"RIFF") and header[8:12] == b"WAVE":
+        return True
+    if len(header) >= 12 and header[4:8] == b"ftyp":
+        return True
+    if header.startswith(b"OggS"):
+        return True
+    return False
 
 import time
 from datetime import datetime
@@ -92,20 +122,19 @@ class MusicPlayer:
         self._media_list = self._instance.media_list_new()
 
         # Collecte tous les fichiers audio pris en charge (récursivement si demandé)
-        audio_exts = (".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg")
         audio_files = []
         if recursive:
             # Cherche dans tous les sous-dossiers
             for root, dirs, files in os.walk(folder_path):
                 for filename in sorted(files):
-                    if filename.lower().endswith(audio_exts):
-                        full_path = os.path.join(root, filename)
+                    full_path = os.path.join(root, filename)
+                    if is_audio_file(full_path):
                         audio_files.append(full_path)
         else:
             # Cherche seulement dans le dossier principal
             for filename in sorted(os.listdir(folder_path)):
-                if filename.lower().endswith(audio_exts):
-                    full_path = os.path.join(folder_path, filename)
+                full_path = os.path.join(folder_path, filename)
+                if is_audio_file(full_path):
                     audio_files.append(full_path)
 
         # Ajoute tous les fichiers à la playlist et à VLC

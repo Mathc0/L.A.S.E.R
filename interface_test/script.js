@@ -37,6 +37,8 @@ let state = {
   position: 0,
 
   tracks: [],
+  localTracks: [],
+  isViewingLocalLibrary: false,
 
   playlists: {
     "Favoris": {
@@ -48,9 +50,7 @@ let state = {
       icon: "🗺️",
       tracks: []
     }
-  },
-
-  localTracks: []
+  }
 };
 
 function formatTime(seconds) {
@@ -65,13 +65,15 @@ function getCurrentTrack() {
 }
 
 function getPlaylistIndexes() {
-  if (state.currentPlaylist === "Découvertes") {
-    return state.playlists["Découvertes"].tracks || [];
+  if (state.isViewingLocalLibrary) {
+    return state.localTracks || [];
   }
-  if (state.currentPlaylist === "Favoris") {
-    return state.playlists["Favoris"].tracks || [];
-  }
-  return [];
+
+  const playlist = state.playlists[state.currentPlaylist];
+
+  if (!playlist) return [];
+
+  return playlist.tracks || [];
 }
 
 async function apiCall(url, method = "GET", data = null) {
@@ -200,13 +202,15 @@ async function loadLocalLibrary() {
 
     state.tracks = state.tracks.filter(track => track.source !== "local");
     state.localTracks = [];
+    state.localTracks = [];
 
     result.tracks.forEach(track => {
       const trackIndex = addOrUpdateLocalTrack(track, track.backendIndex);
       state.localTracks.push(trackIndex);
+      state.localTracks.push(trackIndex);
     });
 
-    state.currentPlaylist = "Découvertes";
+    state.isViewingLocalLibrary = true;
     updateUI(true);
   } catch (error) {
     console.error("Impossible de charger la bibliothèque locale :", error.message);
@@ -226,6 +230,7 @@ function syncStatus(status) {
   const backendIndex = Number(status.index || 1) - 1;
 
   if (status.mode === "local") {
+    state.isViewingLocalLibrary = true;
     const currentIndex = state.tracks.findIndex(
       track => track.source === "local" && track.backendIndex === backendIndex
     );
@@ -358,6 +363,7 @@ function renderPlaylistMenu() {
 
     card.addEventListener("click", () => {
       state.currentPlaylist = name;
+      state.isViewingLocalLibrary = false;
       updateUI(true);
     });
 
@@ -375,7 +381,7 @@ function renderPlaylistMenu() {
 }
 
 function renderPlaylist(force = false) {
-  playlistTitle.textContent = state.currentPlaylist;
+  playlistTitle.textContent = state.isViewingLocalLibrary ? "Bibliothèque locale" : state.currentPlaylist;
 
   const filter = searchInput.value.trim().toLowerCase();
 
@@ -488,7 +494,7 @@ function renderStatus() {
 
   statusBox.innerHTML = `
     <strong>Piste :</strong> ${track ? track.title : "Aucune"}<br>
-    <strong>Playlist :</strong> ${state.currentPlaylist}<br>
+    <strong>Playlist :</strong> ${state.isViewingLocalLibrary ? "Bibliothèque locale" : state.currentPlaylist}<br>
     <strong>Lecture :</strong> ${state.playing ? "Oui" : "Non"}<br>
     <strong>Shuffle :</strong> ${state.shuffle ? "ON" : "OFF"}<br>
     <strong>Repeat :</strong> ${state.repeat ? "ON" : "OFF"}<br>
@@ -813,8 +819,9 @@ document.getElementById("loadBtn").addEventListener("click", () => {
 
 document.getElementById("heroPlayBtn").addEventListener("click", async () => {
   await loadLocalLibrary();
-  if (state.localTracks.length > 0) {
-    playTrack(state.localTracks[0]);
+  const localTracks = state.localTracks;
+  if (localTracks.length > 0) {
+    playTrack(localTracks[0]);
   }
 });
 

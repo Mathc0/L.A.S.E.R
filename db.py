@@ -6,21 +6,23 @@ from dotenv import load_dotenv
 # Charger .env si présent
 load_dotenv()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Par défaut utiliser SQLite local pour le développement
 # Possibilité d'override via la variable d'environnement DATABASE_URL
 # SQLite example: sqlite:///./laser.db
 # MySQL example: mysql+pymysql://user:pass@host:3306/db
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    # Utiliser un dossier `data/` pour stocker la base locale et l'ignorer dans Git
-    data_dir = os.path.join(os.getcwd(), "data")
+    # Utiliser un dossier `data/` dans le projet pour stocker la base locale
+    data_dir = os.path.join(BASE_DIR, "data")
     try:
         os.makedirs(data_dir, exist_ok=True)
     except Exception:
-        # Si on ne peut pas créer le dossier, fallback sur le fichier à la racine
-        DATABASE_URL = f"sqlite:///./laser.db"
+        # Si on ne peut pas créer le dossier, fallback sur le fichier à la racine du projet
+        DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'laser.db')}"
     else:
-        DATABASE_URL = f"sqlite:///./data/laser.db"
+        DATABASE_URL = f"sqlite:///{os.path.join(data_dir, 'laser.db')}"
 
 # Pour SQLite, fournir connect_args requis
 if DATABASE_URL.startswith("sqlite"):

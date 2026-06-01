@@ -9,8 +9,9 @@ from tkinter import Tk, filedialog
 # Intègre le MusicPlayer (fichiers MP3 locaux) et le client YouTube Music.
 # ==============================================================================
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Dossier contenant les fichiers MP3 locaux (par défaut)
-MUSIC_FOLDER = "./musiques"
+MUSIC_FOLDER = os.path.join(BASE_DIR, "musiques")
 
 def browse_music_folder():
     """

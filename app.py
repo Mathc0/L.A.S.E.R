@@ -6,7 +6,7 @@ import os
 import time
 import threading
 import webbrowser
-from player import MusicPlayer
+from player import MusicPlayer, is_audio_file
 try:
     from db import init_db
 except Exception:
@@ -14,6 +14,10 @@ except Exception:
 
 app = Flask(__name__)
 CORS(app)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INTERFACE_FOLDER = os.path.join(BASE_DIR, "interface_test")
+MUSIC_FOLDER = os.path.join(BASE_DIR, "musiques")
 
 # On crée le client YouTube une seule fois
 youtube_client = YouTubeMusicClient()
@@ -24,7 +28,6 @@ active_source = "youtube"
 HOST = "127.0.0.1"
 PORT = 5000
 URL = f"http://{HOST}:{PORT}"
-MUSIC_FOLDER = "./musiques"
 
 
 def open_browser(delay: float = 2.0):
@@ -94,19 +97,19 @@ def get_current_status():
 @app.route("/")
 def home():
     """Sert la page principale de l'interface (index.html)."""
-    return send_from_directory("interface_test", "index.html")
+    return send_from_directory(INTERFACE_FOLDER, "index.html")
 
 
 @app.route("/style.css")
 def style():
     """Sert le fichier de style CSS de l'interface."""
-    return send_from_directory("interface_test", "style.css")
+    return send_from_directory(INTERFACE_FOLDER, "style.css")
 
 
 @app.route("/script.js")
 def script():
     """Sert le fichier JavaScript de l'interface."""
-    return send_from_directory("interface_test", "script.js")
+    return send_from_directory(INTERFACE_FOLDER, "script.js")
 
 
 @app.route("/api/test")
@@ -135,8 +138,8 @@ def search_youtube():
         track   (str)  : titre de la piste trouvée
         message (str)  : message d'erreur si success est False
     """
-    data = request.get_json()
-    query = data.get("query", "").strip()
+    data = request.get_json(silent=True) or {}
+    query = str(data.get("query", "")).strip()
 
     if not query:
         return jsonify({
@@ -245,38 +248,31 @@ def api_library():
     from db import SessionLocal
     from models import Track
     
-    audio_exts = (".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg")
     tracks = []
-    index = 0
     
-    # Charger les musiques locales
-    if os.path.isdir(MUSIC_FOLDER):
-        for root, dirs, files in os.walk(MUSIC_FOLDER):
-            for filename in sorted(files):
-                if not filename.lower().endswith(audio_exts):
-                    continue
+    # Charger les musiques locales depuis le lecteur local (une seule source de verité)
+    if local_player is not None:
+        playlist_paths = local_player.get_playlist(show_path=True)
+        for index, path in enumerate(playlist_paths):
+            title = os.path.splitext(os.path.basename(path))[0]
+            rel_path = os.path.relpath(path, start=MUSIC_FOLDER)
+            parts = rel_path.split(os.sep)
+            artist = ""
+            album = ""
+            if len(parts) >= 3:
+                artist = parts[0]
+                album = parts[1]
+            elif len(parts) == 2:
+                artist = parts[0]
 
-                full_path = os.path.join(root, filename)
-                title = os.path.splitext(filename)[0]
-                rel_path = os.path.relpath(full_path, start=MUSIC_FOLDER)
-                parts = rel_path.split(os.sep)
-                artist = ""
-                album = ""
-                if len(parts) >= 3:
-                    artist = parts[0]
-                    album = parts[1]
-                elif len(parts) == 2:
-                    artist = parts[0]
-
-                tracks.append({
-                    "title": title,
-                    "artist": artist,
-                    "album": album,
-                    "duration": 0,
-                    "source": "local",
-                    "backendIndex": index
-                })
-                index += 1
+            tracks.append({
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "duration": 0,
+                "source": "local",
+                "backendIndex": index
+            })
     
     # Charger aussi les musiques YouTube de la DB avec leurs métadonnées correctes
     try:
@@ -443,7 +439,7 @@ def api_remove_youtube():
         status  (dict) : état complet du lecteur (voir get_status())
         message (str)  : message d'erreur si success est False
     """
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     index = data.get("index")
 
     try:
@@ -484,7 +480,7 @@ def api_seek():
         status  (dict) : état complet du lecteur (voir get_status())
         message (str)  : message d'erreur si success est False
     """
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     seconds = data.get("seconds", 0)
 
     try:
@@ -593,7 +589,7 @@ def api_youtube_metadata():
     try:
         from mp3_tagger import tag_youtube_track
         
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         path = data.get("path")
         title = data.get("title")
         artist = data.get("artist")

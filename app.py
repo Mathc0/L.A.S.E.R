@@ -37,6 +37,10 @@ def open_browser(delay: float = 2.0):
 
 
 def init_music_player():
+    """
+    Analyse et initialise le lecteur de musique local.
+    Gère la création du dossier s'il n'existe pas.
+    """
     global local_player
     print("🎵 Initialisation du lecteur de musique...")
     if not os.path.exists(MUSIC_FOLDER):
@@ -569,12 +573,19 @@ def api_youtube_metadata():
 
 
 def start_flask_server():
+    """
+    Analyse et démarre le serveur Flask pour l'interface web.
+    Gère les erreurs de manière robuste et ne bloque pas.
+    """
     print(f"🚀 Démarrage du serveur Flask sur {URL}")
     app.run(host=HOST, port=PORT, debug=False, use_reloader=False)
 
 
 def main():
-    print("=" * 60)
+    """
+    Analyse et démarre le système L.A.S.E.R complet.
+    Gère l'initialisation et l'exécution de tous les services.
+    """
     print("╔════════════════════════════════════════════════════════╗")
     print("║          L.A.S.E.R - Interface Web                   ║")
     print("║          Démarrage complet du système                 ║")

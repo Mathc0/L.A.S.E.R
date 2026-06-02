@@ -106,6 +106,8 @@ def show_music_progress(player: MusicPlayer):
     """
     Affiche une barre de progression en temps réel pendant la lecture.
     Se met à jour toutes les secondes en fonction de la position réelle dans la piste.
+    
+    :param player: instance du lecteur de musique
     """
     print()  # saut de ligne avant la barre
     while player.is_playing():
@@ -137,7 +139,10 @@ def show_music_progress(player: MusicPlayer):
 
 def show_status(player: MusicPlayer):
     """
-    Affiche l'état complet du player : piste, volume, modes actifs.
+    Affiche l'état complet du lecteur.
+    Présente la piste, le volume et les modes actifs.
+    
+    :param player: instance du lecteur de musique
     """
     s = player.get_status()
     print(
@@ -153,8 +158,9 @@ def show_status(player: MusicPlayer):
 def show_playlist(player: MusicPlayer):
     """
     Affiche toutes les pistes chargées dans la playlist locale.
-    Indique la piste en cours avec une flèche.
-    Affiche le chemin complet si des sous-dossiers sont présents.
+    Indique la piste en cours avec une flèche et le chemin si nécessaire.
+    
+    :param player: instance du lecteur de musique
     """
     playlist = player.get_playlist()
     playlist_paths = player.get_playlist(show_path=True)
@@ -184,6 +190,9 @@ def generic_player_menu(player, player_type: str):
     """
     Menu de contrôle générique pour un lecteur (local ou YouTube).
     Offre un ensemble de commandes unifié pour piloter la lecture.
+    
+    :param player: instance du lecteur (MusicPlayer ou YouTubeMusicClient)
+    :param player_type: type de lecteur ('local' ou 'youtube')
     """
     local_help = """
 Commandes disponibles :
@@ -346,9 +355,10 @@ Commandes disponibles :
 
 def menu_local(player: MusicPlayer):
     """
-    Sous-menu de contrôle du player MP3 local.
-    Offre le choix entre parcourir un dossier, des fichiers individuels, ou le dossier par défaut.
-    Permet de contrôler la lecture, le volume, la navigation et les modes.
+    Sous-menu de contrôle du lecteur MP3 local.
+    Offre le choix entre parcourir un dossier, des fichiers ou le dossier par défaut.
+    
+    :param player: instance du lecteur de musique local
     """
     print("\n--- Mode MP3 Local ---")
     print("Comment voulez-vous charger vos musiques ?")
@@ -450,6 +460,7 @@ def menu_local(player: MusicPlayer):
 def menu_tagging():
     """
     Sous-menu pour lancer le tagger manuellement depuis le menu principal.
+    Permet de sélectionner des dossiers ou fichiers à tagger avec MusicBrainz.
     """
     print("\n--- Tagging MP3 ---")
     print("  1. Tagger le dossier par défaut ('./musiques')")
@@ -494,6 +505,7 @@ def menu_tagging():
 def menu_youtube():
     """
     Sous-menu de recherche et lecture via YouTube Music.
+    Permet de chercher et lire des musiques depuis YouTube.
     """
     print("\n--- Mode YouTube Music ---")
     client = client_yt_music.YouTubeMusicClient()

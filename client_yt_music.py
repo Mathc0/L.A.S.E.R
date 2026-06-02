@@ -27,9 +27,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 class YouTubeMusicClient:
-    """Client YouTube Music avec streaming VLC.
-
-    Fournit recherche, lecture, téléchargement et gestion de playlist via yt-dlp + VLC.
+    """
+    Client YouTube Music avec streaming VLC.
+    Fournit recherche, lecture, téléchargement et gestion de playlist.
     """
 
     def __init__(self):
@@ -72,7 +72,13 @@ class YouTubeMusicClient:
             pass
 
     def search_and_play(self, query: str) -> str:
-        """Recherche une piste et la joue immédiatement. Retourne le titre."""
+        """
+        Analyse et recherche une piste puis la joue immédiatement.
+        Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+        
+        :param query: termes de recherche pour la musique
+        :return: titre de la piste trouvée
+        """
         track = self._fetch_info(query)
         self._playlist.append(track)
         self._current_index = len(self._playlist) - 1
@@ -82,15 +88,24 @@ class YouTubeMusicClient:
         return track.get("title", "Titre inconnu")
 
     def search_and_queue(self, query: str) -> str:
-        """Recherche une piste et l'ajoute à la playlist. Retourne le titre."""
+        """
+        Analyse et recherche une piste puis l'ajoute à la playlist.
+        Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+        
+        :param query: termes de recherche pour la musique
+        :return: titre de la piste trouvée
+        """
         track = self._fetch_info(query)
         self._playlist.append(track)
         return track.get("title", "Titre inconnu")
 
     def search_playlist_and_play(self, query: str) -> tuple:
-        """Recherche une playlist YouTube, charge ses pistes (lazy) et joue la première.
-
-        Retourne (titre_playlist, nombre_de_pistes)
+        """
+        Analyse et recherche une playlist YouTube puis joue la première piste.
+        Charge les pistes de manière paresseuse pour optimiser le démarrage.
+        
+        :param query: termes de recherche pour la playlist
+        :return: tuple (titre_playlist, nombre_de_pistes)
         """
         playlist_title, tracks = self._fetch_playlist_videos(query)
         if not tracks:

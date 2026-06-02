@@ -77,11 +77,11 @@ class MusicPlayer:
 
     def load_folder(self, folder_path: str, recursive: bool = False) -> int:
         """
-        Charge tous les fichiers MP3 d'un dossier dans la playlist.
-        Efface l'ancienne playlist avant de charger la nouvelle.
-
-        :param folder_path: chemin du dossier à scanner.
-        :param recursive: si True, cherche dans les sous-dossiers aussi.
+        Analyse et met à jour les métadonnées des fichiers MP3 via Discogs.
+        Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+        
+        :param folder_path: chemin du dossier à scanner (défaut: MUSIC_FOLDER)
+        :param recursive: si True, cherche dans les sous-dossiers aussi
         :return: nombre de fichiers MP3 trouvés et chargés.
         """
         if not os.path.isdir(folder_path):
@@ -179,9 +179,10 @@ class MusicPlayer:
 
     def add_track(self, file_path: str):
         """
-        Ajoute un seul fichier MP3 à la playlist existante.
-
-        :param file_path: chemin absolu ou relatif vers le fichier .mp3.
+        Analyse et ajoute un fichier MP3 à la playlist.
+        Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+        
+        :param file_path: chemin absolu ou relatif vers le fichier .mp3
         """
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"Fichier introuvable : {file_path}")
@@ -198,10 +199,10 @@ class MusicPlayer:
 
     def play(self, index: int = None):
         """
-        Démarre ou reprend la lecture.
-
-        :param index: si fourni, démarre directement la piste à cet index.
-                      Si None, reprend la piste en cours (ou la première).
+        Analyse et démarre ou reprend la lecture audio.
+        Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+        
+        :param index: index de la piste à jouer, None pour reprendre la courante
         """
         if not self._playlist:
             print("[Player] La playlist est vide. Chargez des fichiers d'abord.")
@@ -229,14 +230,16 @@ class MusicPlayer:
 
     def pause(self):
         """
-        Met en pause si en lecture, reprend si en pause (toggle).
+        Bascule entre pause et lecture en fonction de l'état actuel.
+        Utilise le comportement de toggle de VLC.
         """
         # VLC gère automatiquement le toggle play/pause avec cette méthode
         self._list_player.pause()
 
     def stop(self):
         """
-        Arrête complètement la lecture et remet la position à zéro.
+        Analyse et arrête la lecture audio.
+        Gère les erreurs de manière robuste et remet la position à zéro.
         """
         self._list_player.stop()
 
@@ -329,9 +332,10 @@ class MusicPlayer:
 
     def set_volume(self, volume: int):
         """
-        Définit le volume de lecture.
-
-        :param volume: entier entre 0 (muet) et 100 (maximum).
+        Analyse et définit le volume de lecture audio.
+        Gère les erreurs de manière robuste et valide les données.
+        
+        :param volume: entier entre 0 (muet) et 100 (maximum)
         """
         if not (0 <= volume <= 100):
             raise ValueError("Le volume doit être compris entre 0 et 100.")
@@ -343,7 +347,10 @@ class MusicPlayer:
 
     def get_volume(self) -> int:
         """
-        Retourne le volume actuel (0-100).
+        Analyse et retourne le niveau sonore actuel du lecteur.
+        Normalise la valeur stockée en cas d'erreur.
+        
+        :return: volume entre 0 et 100
         """
         try:
             return self._player.audio_get_volume()
@@ -353,17 +360,19 @@ class MusicPlayer:
 
     def volume_up(self, step: int = 5):
         """
-        Augmente le volume d'un certain nombre de points.
-
-        :param step: nombre de points à ajouter (défaut : 5).
+        Analyse et augmente le niveau sonore d'une valeur donnée.
+        Ne dépasse pas le maximum de 100.
+        
+        :param step: nombre de points à ajouter (défaut : 5)
         """
         self.set_volume(min(100, self.get_volume() + step))
 
     def volume_down(self, step: int = 5):
         """
-        Diminue le volume d'un certain nombre de points.
-
-        :param step: nombre de points à retirer (défaut : 5).
+        Analyse et diminue le niveau sonore d'une valeur donnée.
+        Ne descend pas en dessous de 0.
+        
+        :param step: nombre de points à retirer (défaut : 5)
         """
         self.set_volume(max(0, self.get_volume() - step))
 
@@ -373,19 +382,20 @@ class MusicPlayer:
 
     def toggle_shuffle(self) -> bool:
         """
-        Active ou désactive le mode aléatoire (shuffle).
-
-        :return: True si le shuffle est maintenant actif, False sinon.
+        Analyse et bascule l'activation du mode aléatoire.
+        Retourne le nouvel état du shuffle.
+        
+        :return: True si shuffle est activé, False sinon
         """
         self._shuffle = not self._shuffle
         return self._shuffle
 
     def toggle_repeat(self) -> bool:
         """
-        Active ou désactive la répétition de la playlist complète.
-        En mode repeat, la playlist recommence automatiquement à la fin.
-
-        :return: True si le repeat est maintenant actif, False sinon.
+        Analyse et bascule l'activation du mode répétition.
+        Gère le mode boucle de VLC automatiquement.
+        
+        :return: True si repeat est activé, False sinon
         """
         self._repeat = not self._repeat
         if self._repeat:
@@ -400,10 +410,11 @@ class MusicPlayer:
 
     def get_current_track_name(self, show_path: bool = False) -> str:
         """
-        Retourne le nom du fichier de la piste en cours (sans l'extension).
-
-        :param show_path: si True, affiche le chemin relatif complet avec sous-dossiers.
-        :return: nom de la piste ou "Aucune piste" si la playlist est vide.
+        Analyse et retourne le nom de la piste en cours de lecture.
+        Option pour afficher le chemin relatif complet.
+        
+        :param show_path: si True, affiche le chemin complet
+        :return: nom de la piste ou 'Aucune piste' si vide
         """
         if not self._playlist:
             return "Aucune piste"
@@ -418,16 +429,20 @@ class MusicPlayer:
 
     def get_current_index(self) -> int:
         """
-        Retourne l'index (0-based) de la piste en cours de lecture.
+        Analyse et retourne l'index de la piste en cours.
+        Utilise une numérotation 0-basée.
+        
+        :return: index de la piste courante
         """
         return self._current_index
 
     def get_playlist(self, show_path: bool = False) -> list:
         """
-        Retourne la liste de tous les noms de pistes (sans extension) de la playlist.
-
-        :param show_path: si True, affiche le chemin complet de chaque fichier.
-        :return: liste de chaînes de caractères.
+        Analyse et retourne la liste de toutes les pistes.
+        Option pour afficher le chemin complet ou le nom seul.
+        
+        :param show_path: si True, retourne les chemins complets
+        :return: liste de noms ou chemins de pistes
         """
         if show_path:
             return self._playlist
@@ -438,44 +453,49 @@ class MusicPlayer:
 
     def get_duration(self) -> float:
         """
-        Retourne la durée totale de la piste en cours en secondes.
-        Retourne -1 si la durée n'est pas encore disponible (piste non chargée).
+        Analyse et retourne la durée totale de la piste en cours.
+        Retourne -1 si la durée n'est pas disponible.
+        
+        :return: durée en secondes ou -1 si indisponible
         """
         ms = self._player.get_length()  # durée en millisecondes
         return ms / 1000 if ms > 0 else -1
 
     def get_position(self) -> float:
         """
-        Retourne la position de lecture actuelle en secondes.
+        Analyse et retourne la position actuelle de la lecture.
         Retourne -1 si aucune piste n'est en cours.
+        
+        :return: position en secondes ou -1 si non disponible
         """
         ms = self._player.get_time()    # position en millisecondes
         return ms / 1000 if ms >= 0 else -1
 
     def seek(self, seconds: float):
         """
-        Déplace la tête de lecture à une position donnée en secondes.
-
-        :param seconds: position cible en secondes depuis le début.
+        Analyse et déplace la tête de lecture à une position donnée.
+        Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+        
+        :param seconds: position cible en secondes depuis le début
         """
         ms = int(seconds * 1000)
         self._player.set_time(ms)
 
     def is_playing(self) -> bool:
         """
-        Indique si le player est actuellement en train de lire.
-
-        :return: True si en lecture, False sinon.
+        Analyse et vérifie l'état de lecture du lecteur.
+        Indique si le lecteur est actuellement en train de jouer.
+        
+        :return: True si en lecture, False sinon
         """
         return self._player.is_playing() == 1
 
     def get_status(self) -> dict:
         """
-        Retourne un dictionnaire récapitulatif de l'état complet du player.
+        Analyse et retourne un dictionnaire récapitulatif de l'état du lecteur.
         Pratique pour afficher l'état dans main.py ou une interface CLI.
-
-        :return: dict avec les clés : track, index, total, playing,
-                 volume, shuffle, repeat, position, duration.
+        
+        :return: dict avec track, index, total, playing, volume, shuffle, repeat, position, duration
         """
         return {
             "track":    self.get_current_track_name(),

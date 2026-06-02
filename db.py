@@ -33,7 +33,10 @@ Base = declarative_base()
 
 
 def init_db():
-    """Importe les modèles et crée les tables si nécessaire."""
+    """
+    Importe les modèles et crée les tables si nécessaire.
+    Initialise la base de données SQLAlchemy.
+    """
     # Importer les modules de modèles pour enregistrer les classes sur Base
     try:
         import models  # noqa: F401
@@ -45,7 +48,10 @@ def init_db():
 
 
 def get_db_session():
-    """Contexte générateur pour obtenir une session SQLAlchemy."""
+    """
+    Crée et retourne une session SQLAlchemy.
+    Gère l'ouverture et la fermeture automatique.
+    """
     db = SessionLocal()
     try:
         yield db

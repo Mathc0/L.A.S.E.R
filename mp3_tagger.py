@@ -24,10 +24,10 @@ except Exception as e:
 
 def parse_filename_metadata(filename: str) -> Tuple[str, str, str]:
     """
-    Parse le nom du fichier pour extraire artiste, album et titre.
-    Supporte les formats courants comme "Artist - Album - 01 - Title.mp3"
+    Analyse et extrait les métadonnées depuis le nom du fichier.
+    Supporte les formats courants comme "Artist - Album - 01 - Title.mp3".
     
-    :param filename: nom du fichier (avec ou sans extension)
+    :param filename: nom du fichier avec ou sans extension
     :return: tuple (artist, album, title)
     """
     name = os.path.splitext(filename)[0]
@@ -48,7 +48,11 @@ def parse_filename_metadata(filename: str) -> Tuple[str, str, str]:
 
 def search_release(artist: str, album: str):
     """
-    Recherche un album dans MusicBrainz par artiste et titre de release.
+    Recherche un album dans MusicBrainz par artiste et titre.
+    Retourne le premier résultat trouvé ou None.
+    
+    :param artist: nom de l'artiste
+    :param album: titre de l'album
     """
     try:
         result = mb.search_releases(artist=artist, release=album, limit=5)
@@ -61,6 +65,10 @@ def search_release(artist: str, album: str):
 def search_recording(artist: str, title: str):
     """
     Recherche un enregistrement dans MusicBrainz par artiste et titre.
+    Retourne le premier résultat trouvé ou None.
+    
+    :param artist: nom de l'artiste
+    :param title: titre de la musique
     """
     try:
         result = mb.search_recordings(artist=artist, recording=title, limit=5)
@@ -80,8 +88,11 @@ def safe_artist_name(artist_credit) -> str:
 
 def tag_mp3_file(file_path: str) -> bool:
     """
-    Met à jour les métadonnées MP3 en utilisant l'API MusicBrainz.
-    Utilise le nom du fichier si les métadonnées actuelles sont incomplètes.
+    Analyse et met à jour les métadonnées des fichiers MP3 via MusicBrainz.
+    Gère les erreurs de manière robuste et ne bloque pas le démarrage.
+    
+    :param file_path: chemin du fichier MP3 à tagger
+    :return: True si le tagging a réussi, False sinon
     """
     if not mb:
         print(f"⚠️  Client MusicBrainz non disponible pour {os.path.basename(file_path)}")
@@ -237,15 +248,13 @@ def tag_mp3_file(file_path: str) -> bool:
 
 def tag_youtube_track(path: str, title: str, artist: str, album: str = None) -> bool:
     """
-    Met à jour les métadonnées d'une musique YouTube dans la base de données.
+    Analyse et enregistre les métadonnées d'une musique YouTube en base de données.
+    Gère les erreurs de manière robuste sans interruption.
     
-    Cette fonction met à jour directement la DB pour les musiques YouTube
-    qui ne sont pas des fichiers locaux mais des liens de streaming.
-    
-    :param path: URL ou chemin unique de la musique YouTube
-    :param title: Titre de la musique
-    :param artist: Artiste de la musique
-    :param album: Album ou channel (optionnel)
+    :param path: URL ou chemin unique de la musique
+    :param title: titre de la musique
+    :param artist: artiste de la musique
+    :param album: album ou canal (optionnel)
     :return: True si succès, False sinon
     """
     session = SessionLocal()

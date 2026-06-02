@@ -200,15 +200,17 @@ async function loadLocalLibrary() {
   try {
     const result = await apiCall("/api/library");
 
+    // Remove any previous local tracks from the master list
     state.tracks = state.tracks.filter(track => track.source !== "local");
     state.localTracks = [];
-    state.localTracks = [];
 
-    result.tracks.forEach(track => {
-      const trackIndex = addOrUpdateLocalTrack(track, track.backendIndex);
-      state.localTracks.push(trackIndex);
-      state.localTracks.push(trackIndex);
-    });
+    // Only process tracks that come from the local source
+    result.tracks
+      .filter(t => t.source === "local")
+      .forEach(track => {
+        const trackIndex = addOrUpdateLocalTrack(track, track.backendIndex);
+        state.localTracks.push(trackIndex);
+      });
 
     state.isViewingLocalLibrary = true;
     updateUI(true);
@@ -337,7 +339,7 @@ function renderPlaylistMenu() {
     const emoji = state.playlists[name].icon || "✨";
     const count = state.playlists[name].tracks.length;
 
-    const canDelete = true;
+    const canDelete = !(name === "Favoris" || name === "Découvertes");
 
     card.innerHTML = `
       <span>${emoji}</span>

@@ -1,7 +1,9 @@
+Flask
+Flask-CORS
 yt-dlp
-Pillow
-python-vlc
 static-ffmpeg
+python-vlc
+eyed3
 musicbrainzngs
 eyed3
 Flask

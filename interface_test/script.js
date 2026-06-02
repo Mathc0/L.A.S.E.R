@@ -47,13 +47,10 @@ let state = {
     "Découvertes": {
       icon: "🗺️",
       tracks: []
-    },
-
-    "Bibliothèque locale": {
-      icon: "📂",
-      tracks: []
     }
-  }
+  },
+
+  localTracks: []
 };
 
 function formatTime(seconds) {
@@ -68,11 +65,13 @@ function getCurrentTrack() {
 }
 
 function getPlaylistIndexes() {
-  const playlist = state.playlists[state.currentPlaylist];
-
-  if (!playlist) return [];
-
-  return playlist.tracks || [];
+  if (state.currentPlaylist === "Découvertes") {
+    return state.playlists["Découvertes"].tracks || [];
+  }
+  if (state.currentPlaylist === "Favoris") {
+    return state.playlists["Favoris"].tracks || [];
+  }
+  return [];
 }
 
 async function apiCall(url, method = "GET", data = null) {
@@ -200,16 +199,14 @@ async function loadLocalLibrary() {
     const result = await apiCall("/api/library");
 
     state.tracks = state.tracks.filter(track => track.source !== "local");
-    state.playlists["Bibliothèque locale"].tracks = [];
+    state.localTracks = [];
 
     result.tracks.forEach(track => {
       const trackIndex = addOrUpdateLocalTrack(track, track.backendIndex);
-      if (!state.playlists["Bibliothèque locale"].tracks.includes(trackIndex)) {
-        state.playlists["Bibliothèque locale"].tracks.push(trackIndex);
-      }
+      state.localTracks.push(trackIndex);
     });
 
-    state.currentPlaylist = "Bibliothèque locale";
+    state.currentPlaylist = "Découvertes";
     updateUI(true);
   } catch (error) {
     console.error("Impossible de charger la bibliothèque locale :", error.message);
@@ -229,7 +226,6 @@ function syncStatus(status) {
   const backendIndex = Number(status.index || 1) - 1;
 
   if (status.mode === "local") {
-    state.currentPlaylist = "Bibliothèque locale";
     const currentIndex = state.tracks.findIndex(
       track => track.source === "local" && track.backendIndex === backendIndex
     );
@@ -336,9 +332,7 @@ function renderPlaylistMenu() {
     const emoji = state.playlists[name].icon || "✨";
     const count = state.playlists[name].tracks.length;
 
-    const canDelete =
-      name !== "Favoris" &&
-      name !== "Découvertes";
+    const canDelete = true;
 
     card.innerHTML = `
       <span>${emoji}</span>
@@ -569,7 +563,7 @@ function toggleFavorite(trackIndex) {
 
 function addTrackToPlaylist(trackIndex) {
   const names = Object.keys(state.playlists).filter(
-    name => name !== "Découvertes"
+    name => name !== "Découvertes" && name !== "Favoris"
   );
 
   if (names.length === 0) {
@@ -819,9 +813,8 @@ document.getElementById("loadBtn").addEventListener("click", () => {
 
 document.getElementById("heroPlayBtn").addEventListener("click", async () => {
   await loadLocalLibrary();
-  const localTracks = state.playlists["Bibliothèque locale"].tracks;
-  if (localTracks.length > 0) {
-    playTrack(localTracks[0]);
+  if (state.localTracks.length > 0) {
+    playTrack(state.localTracks[0]);
   }
 });
 
@@ -830,7 +823,14 @@ document.getElementById("youtubeBtn").addEventListener("click", () => {
   searchYoutube();
 });
 
-playPauseBtn.addEventListener("click", () => {
+    searchInput.addEventListener("keypress", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchYoutube();
+      }
+    });
+
+    playPauseBtn.addEventListener("click", () => {
   playPause();
 });
 
